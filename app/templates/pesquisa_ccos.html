@@ -1,0 +1,1020 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.filtros-container {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 30px;
+    border: 1px solid #dee2e6;
+}
+
+.filtro-section {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 4px solid #007bff;
+}
+
+.resultados-container {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+    /* Painel acompanha a largura do container, igual ao painel de filtros */
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    overflow-x: hidden;
+}
+
+.resultados-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+.resultados-header-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.resultados-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.resultados-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+#btnExportarListaCcos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+/* Faz o DataTables respeitar a largura real da tabela */
+#tabelaCCOs_wrapper {
+    width: 100%;
+    max-width: 100%;
+}
+
+#tabelaCCOs {
+    width: 100% !important;
+    margin-bottom: 0 !important;
+    white-space: nowrap;
+}
+
+.table-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Mantém paginação/info dentro da largura da tabela */
+#tabelaCCOs_wrapper > .row {
+    width: 100%;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+#tabelaCCOs_wrapper > .row:first-child,
+#tabelaCCOs_wrapper > .row:last-child {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#tabelaCCOs_wrapper > .row:first-child > div,
+#tabelaCCOs_wrapper > .row:last-child > div {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+#tabelaCCOs_wrapper .dataTables_length {
+    text-align: left !important;
+    margin-bottom: 8px;
+}
+
+#tabelaCCOs_wrapper .dataTables_filter {
+    text-align: right !important;
+    margin-bottom: 0;
+}
+
+#tabelaCCOs_wrapper .dataTables_filter label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+#tabelaCCOs_wrapper .dataTables_filter input {
+    margin-left: 0 !important;
+}
+
+#containerPesquisaDataTable {
+    display: inline-flex;
+    align-items: center;
+}
+
+#containerPesquisaDataTable .dataTables_filter {
+    display: inline-flex;
+    align-items: center;
+}
+
+#containerPesquisaDataTable .dataTables_filter label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+#containerPesquisaDataTable .dataTables_filter input {
+    width: 180px;
+}
+
+.resultados-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+#tabelaCCOs_wrapper .dataTables_info {
+    text-align: left !important;
+    padding-top: 12px;
+}
+
+#tabelaCCOs_wrapper .dataTables_paginate {
+    text-align: right !important;
+    padding-top: 8px;
+}
+
+.status-badge-recuperado {
+    font-size: 0.8em;
+    padding: 4px 8px;
+}
+
+.btn-tabela-acao {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    min-height: 31px;
+    min-width: 78px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.btn-tabela-acao i {
+    margin-right: 0 !important;
+}
+
+.btn-timeline {
+    min-width: 78px;
+}
+
+
+/* Ajuste final dos controles de resultados:
+   - painel mantém largura do painel de filtros
+   - Exibir, Pesquisar e Exportar lista ficam na mesma linha, no lado direito
+*/
+.resultados-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow-x: hidden !important;
+}
+
+.resultados-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+    margin-bottom: 12px !important;
+    width: 100% !important;
+}
+
+.resultados-header-left {
+    display: flex !important;
+    align-items: flex-start !important;
+}
+
+.resultados-header-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    gap: 8px !important;
+}
+
+.resultados-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+}
+
+#containerExibirDataTable,
+#containerPesquisaDataTable {
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+#containerExibirDataTable .dataTables_length,
+#containerPesquisaDataTable .dataTables_filter {
+    display: inline-flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    text-align: left !important;
+}
+
+#containerExibirDataTable .dataTables_length label,
+#containerPesquisaDataTable .dataTables_filter label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
+
+#containerExibirDataTable .dataTables_length select {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+#containerPesquisaDataTable .dataTables_filter input {
+    margin-left: 0 !important;
+    width: 180px !important;
+}
+
+/* O campo de pesquisa do DataTables só é útil quando há mais de um resultado. */
+#containerPesquisaDataTable.ocultar-pesquisa-datatable {
+    display: none !important;
+}
+
+#btnExportarListaCcos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+#tabelaCCOs_wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+#tabelaCCOs_wrapper > .row:first-child {
+    display: none !important;
+}
+
+#tabelaCCOs_wrapper > .row:last-child {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+.table-responsive {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+}
+
+#tabelaCCOs {
+    width: 100% !important;
+    margin-bottom: 0 !important;
+    white-space: nowrap !important;
+}
+
+/* Padroniza o alinhamento de todas as colunas da tabela de resultados */
+#tabelaCCOs th,
+#tabelaCCOs td {
+    text-align: left !important;
+}
+
+
+/* Layout final solicitado:
+   Linha 1: Resultados da Pesquisa à esquerda e total à direita
+   Linha 2: Exibir à esquerda e Pesquisar + Exportar lista à direita
+*/
+.resultados-header {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+    width: 100% !important;
+}
+
+.resultados-header-top,
+.resultados-header-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    width: 100% !important;
+}
+
+.resultados-header-top {
+    align-items: flex-start !important;
+}
+
+.resultados-header-bottom {
+    align-items: center !important;
+}
+
+.resultados-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+}
+
+#containerExibirDataTable,
+#containerPesquisaDataTable {
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+#containerExibirDataTable .dataTables_length,
+#containerPesquisaDataTable .dataTables_filter {
+    display: inline-flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+}
+
+#containerExibirDataTable .dataTables_length label,
+#containerPesquisaDataTable .dataTables_filter label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
+
+#containerPesquisaDataTable .dataTables_filter input {
+    margin-left: 0 !important;
+    width: 180px !important;
+}
+
+#btnExportarListaCcos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    z-index: 9999;
+}
+
+.loading-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>
+                <i class="fas fa-search me-2"></i>
+                Pesquisa de CCOs
+            </h2>
+            <p class="text-muted">Pesquise CCOs por ID ou aplicando filtros específicos</p>
+        </div>
+    </div>
+
+    <!-- Filtros de Pesquisa -->
+    <div class="filtros-container">
+        <h5><i class="fas fa-filter me-2"></i>Filtros de Pesquisa</h5>
+        
+        <!-- Pesquisa por ID -->
+        <div class="filtro-section">
+            <h6><i class="fas fa-hashtag me-2"></i>Pesquisa por ID</h6>
+            <div class="row">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" id="inputId" placeholder="Digite o ID da CCO">
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100" onclick="pesquisarPorId()">
+                        <i class="fas fa-search me-1"></i>Pesquisar por ID
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center my-3">
+            <strong>OU</strong>
+        </div>
+
+        <!-- Pesquisa por Filtros -->
+        <div class="filtro-section">
+            <h6><i class="fas fa-sliders-h me-2"></i>Pesquisa por Filtros</h6>
+            <form id="formFiltros">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Contrato CPP *</label>
+                        <select class="form-select" id="selectContrato" required onchange="carregarCampos()">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Campo</label>
+                        <select class="form-select" id="selectCampo">
+                            <option value="">Todos</option>
+                        </select>
+                        
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Remessa</label>
+                        <input type="number" class="form-control" id="inputRemessa" placeholder="Número">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Exercício</label>
+                        <input type="number" class="form-control" id="inputExercicio" placeholder="AAAA">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Período</label>
+                        <input type="text" class="form-control" id="inputPeriodo" placeholder="MM" inputmode="numeric" maxlength="2" pattern="\d{1,2}" autocomplete="off" oninput="normalizarCampoPeriodo(this)">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Fase Remessa</label>
+                        <select class="form-select" id="selectFase">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Origem dos Gastos</label>
+                        <select class="form-select" id="selectOrigem">
+                            <option value="">Todas</option>
+                            <option value="GASTO_EXCLUSIVO">Gasto Exclusivo</option>
+                            <option value="GASTO_JAZIDA_COMPARTILHADA">Gasto Jazida Compartilhada</option>
+                            <option value="GASTO_ATIVO_COMPARTILHADO">Gasto Ativo Compartilhado</option>
+                            <option value="GASTO_AEGV">Gasto AEGV</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <button type="button" class="btn btn-success w-100" onclick="pesquisarPorFiltros()">
+                            <i class="fas fa-search me-1"></i>Pesquisar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="containerResultados" class="resultados-container" style="display: none;">
+        <div class="resultados-header">
+            <div class="resultados-header-top">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Resultados da Pesquisa
+                </h5>
+
+                <span id="totalResultados" class="badge bg-primary"></span>
+            </div>
+
+            <div class="resultados-header-bottom">
+                <div id="containerExibirDataTable"></div>
+
+                <div class="resultados-header-actions">
+                    <div id="containerPesquisaDataTable"></div>
+
+                    <button id="btnExportarListaCcos"
+                            class="btn btn-success btn-sm"
+                            onclick="exportarListaCcos()"
+                            style="display: none;">
+                        <i class="fas fa-file-excel me-1"></i>
+                        Exportar lista
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table id="tabelaCCOs" class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ações</th>
+                        <th>ID</th>
+                        <th>Contrato</th>
+                        <th>Campo</th>
+                        <th>Remessa</th>
+                        <th>Fase</th>
+                        <th class="col-fase-resposta-gestora">Fase Resposta Gestora</th>
+                        <th>Mês/Ano Rec.</th>
+                        <th>Período</th>
+                        <th>Origem</th>
+                        <th>Recuperado</th>
+                        <th>Correções</th>
+                        <th>Última Atualização</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-content">
+        <div class="spinner"></div>
+        <h5>Pesquisando CCOs...</h5>
+        <p class="text-muted">Por favor, aguarde</p>
+    </div>
+</div>
+
+<script>
+
+window.API_PREFIX = "{{ request.script_root }}";
+let ultimosFiltrosPesquisa = null;
+let totalResultadosAtual = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    carregarContratos();
+    carregarFasesRemessa();
+    
+});
+
+function carregarContratos() {
+    fetch(`${window.API_PREFIX}/api/contratos-disponiveis`)
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('selectContrato');
+            select.innerHTML = '<option value="">Selecione...</option>';
+            data.contratos.forEach(contrato => {
+                select.innerHTML += `<option value="${contrato}">${contrato}</option>`;
+            });
+        })
+        .catch(error => console.error('Erro ao carregar contratos:', error));
+}
+
+function carregarFasesRemessa() {
+    const select = document.getElementById('selectFase');
+
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Todas</option>';
+
+    fetch(`${window.API_PREFIX}/api/fases-ccos-disponiveis`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.fases || !Array.isArray(data.fases)) {
+                console.warn('Lista de fases não retornada pela API.');
+                return;
+            }
+
+            data.fases.forEach(fase => {
+                if (!fase) return;
+
+                const option = document.createElement('option');
+                option.value = fase;
+                option.textContent = fase;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Erro ao carregar fases da remessa:', error));
+}
+
+function carregarCampos() {
+    const contrato = document.getElementById('selectContrato').value;
+    const selectCampo = document.getElementById('selectCampo');
+
+    console.log(contrato);
+    
+    if (!contrato) {
+        selectCampo.innerHTML = '<option value="">Todos</option>';
+        return;
+    }
+    
+    fetch(`${window.API_PREFIX}/api/campos-por-contrato/${contrato}`)
+        .then(response => response.json())
+        .then(data => {
+            selectCampo.innerHTML = '<option value="">Todos</option>';
+            data.campos.forEach(campo => {
+                selectCampo.innerHTML += `<option value="${campo}">${campo}</option>`;
+                console.log(campo);
+            });
+        })
+        .catch(error => console.error('Erro ao carregar campos:', error));
+}
+
+
+function normalizarCampoPeriodo(input) {
+    input.value = input.value.replace(/\D/g, '').slice(0, 2);
+}
+
+function obterPeriodoPesquisa() {
+    const inputPeriodo = document.getElementById('inputPeriodo');
+    const periodo = inputPeriodo.value.trim();
+
+    if (!periodo) return '';
+
+    const periodoNumero = parseInt(periodo, 10);
+
+    if (isNaN(periodoNumero) || periodoNumero < 1 || periodoNumero > 12) {
+        alert('Período inválido. Informe um mês entre 01 e 12.');
+        inputPeriodo.focus();
+        return null;
+    }
+
+    return String(periodoNumero);
+}
+
+function formatarAnoMesReconhecimento(mes, ano) {
+    const mesNumero = parseInt(mes, 10);
+    const anoNumero = parseInt(ano, 10);
+
+    if (!mesNumero || !anoNumero) return '';
+
+    return String(mesNumero).padStart(2, '0') + '/' + anoNumero;
+}
+
+function datatableDisponivel() {
+    return Boolean(window.jQuery && $.fn && $.fn.DataTable);
+}
+
+function faseRespostaGestoraPreenchida(faseRespostaGestora) {
+    return String(faseRespostaGestora ?? '').trim() !== '';
+}
+
+function deveExibirColunaFaseRespostaGestora(resultados = []) {
+    return resultados.some(cco => faseRespostaGestoraPreenchida(cco.faseRespostaGestora));
+}
+
+function pesquisarPorId() {
+    const id = document.getElementById('inputId').value.trim();
+    
+    if (!id) {
+        alert('Por favor, digite um ID para pesquisa');
+        return;
+    }
+    
+    const dados = { id: id };
+    executarPesquisa(dados);
+}
+
+function pesquisarPorFiltros() {
+    const contrato = document.getElementById('selectContrato').value;
+    const periodo = obterPeriodoPesquisa();
+
+    if (periodo === null) return;
+    
+    if (!contrato) {
+        alert('Contrato CPP é obrigatório para pesquisa por filtros');
+        return;
+    }
+    
+    const dados = {
+        contratoCpp: contrato,
+        campo: document.getElementById('selectCampo').value,
+        remessa: document.getElementById('inputRemessa').value,
+        exercicio: document.getElementById('inputExercicio').value,
+        periodo: periodo,
+        faseRemessa: document.getElementById('selectFase').value,
+        origemDosGastos: document.getElementById('selectOrigem').value
+    };
+    
+    
+    
+    executarPesquisa(dados);
+}
+
+function executarPesquisa(dados) {
+    ultimosFiltrosPesquisa = dados;
+    mostrarLoading();
+
+    fetch(`${window.API_PREFIX}/api/pesquisar-ccos`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(dados)
+    })
+    .then(response => response.json())
+    .then(data => {
+        esconderLoading();
+
+        if (!data.success) {
+            alert('Erro na pesquisa: ' + data.error);
+            return;
+        }
+
+        try {
+            exibirResultados(data.resultados, data.total);
+        } catch (erroRenderizacao) {
+            // Evita alert falso quando a requisição funcionou, mas algum plugin/controle visual
+            // ainda não terminou de carregar na primeira busca.
+            console.error('Erro ao renderizar resultados da pesquisa:', erroRenderizacao);
+        }
+    })
+    .catch(error => {
+        esconderLoading();
+        console.error('Erro na requisição da pesquisa:', error);
+        alert('Erro ao executar pesquisa');
+    });
+}
+
+function exibirResultados(resultados, total) {
+    totalResultadosAtual = total;
+
+    // A regra vale para qualquer tipo de pesquisa:
+    // 0 ou 1 resultado = oculta o campo Pesquisar
+    // 2 ou mais resultados = exibe o campo Pesquisar
+    atualizarVisibilidadePesquisaDataTable(totalResultadosAtual);
+
+    const container = document.getElementById('containerResultados');
+    const totalSpan = document.getElementById('totalResultados');
+    const tbody = document.querySelector('#tabelaCCOs tbody');
+
+    totalSpan.textContent = `${total} resultado(s)`;
+    tbody.innerHTML = '';
+
+    resultados.forEach(cco => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <button class="btn btn-primary btn-sm btn-tabela-acao btn-timeline" onclick="abrirTimeline('${cco.id}')" title="Abrir timeline da CCO">
+                    <i class="fas fa-history"></i>Timeline
+                </button>
+            </td>
+            <td><code style="font-size: 0.8em;">${cco.id}</code></td>
+            <td>${cco.contratoCpp}</td>
+            <td>${cco.campo}</td>
+            <td><span class="badge bg-info">${cco.remessa}</span></td>
+            <td><span class="badge bg-secondary">${cco.faseRemessa}</span></td>
+            <td class="col-fase-resposta-gestora"><span class="badge bg-dark">${cco.faseRespostaGestora ?? ''}</span></td>
+            <td>${formatarAnoMesReconhecimento(cco.mesReconhecimento, cco.anoReconhecimento)}</td>
+            <td>${cco.periodo}</td>
+            <td><small>${cco.origemDosGastos}</small></td>
+            <td>
+                <span class="status-badge-recuperado badge ${cco.flgRecuperado ? 'bg-success' : 'bg-secondary'}">
+                    ${cco.flgRecuperado ? 'Sim' : 'Não'}
+                </span>
+            </td>
+            <td>
+                <span class="badge ${cco.temCorrecoes ? 'bg-warning' : 'bg-light text-dark'}">
+                    ${cco.temCorrecoes ? 'Sim' : 'Não'}
+                </span>
+            </td>
+            <td><small>${cco.ultimaAtualizacao}</small></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    container.style.display = 'block';
+
+    const btnExportar = document.getElementById('btnExportarListaCcos');
+    if (btnExportar) {
+        if (total > 0) {
+            btnExportar.style.display = 'inline-flex';
+            btnExportar.innerHTML = total === 1
+                ? '<i class="fas fa-file-excel me-1"></i>Exportar item'
+                : '<i class="fas fa-file-excel me-1"></i>Exportar lista';
+        } else {
+            btnExportar.style.display = 'none';
+        }
+    }
+
+    // Inicializar DataTable se ainda não foi inicializado.
+    // Em alguns ambientes, na primeira pesquisa o plugin pode ainda não estar disponível;
+    // nesse caso a tabela permanece renderizada normalmente e a paginação entra nas próximas buscas.
+    if (!datatableDisponivel()) {
+        console.warn('DataTables ainda não está disponível. Resultados renderizados sem paginação nesta busca.');
+        posicionarControlesResultados();
+        return;
+    }
+
+    const exibirFaseRespostaGestora = deveExibirColunaFaseRespostaGestora(resultados);
+
+    if (!$.fn.DataTable.isDataTable('#tabelaCCOs')) {
+        const tabela = $('#tabelaCCOs').DataTable({
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+            },
+            pageLength: 25,
+            scrollX: true,
+            order: [[4, 'desc']], // Ordenar por remessa decrescente
+            columnDefs: [
+                { targets: [0], orderable: false }, // Coluna de ações
+                { targets: '_all', className: 'text-start' } // Todas as colunas alinhadas à esquerda
+            ],
+            initComplete: function() {
+                const tabelaInicializada = this.api();
+
+                // Neste momento os controles Exibir/Pesquisar já foram realmente
+                // criados pelo DataTables, inclusive na primeira pesquisa da tela.
+                tabelaInicializada.column(6).visible(exibirFaseRespostaGestora);
+                tabelaInicializada.columns.adjust();
+
+                posicionarControlesResultados();
+                atualizarVisibilidadePesquisaDataTable(totalResultadosAtual);
+            }
+        });
+    } else {
+        const tabela = $('#tabelaCCOs').DataTable();
+
+        // Cada nova pesquisa da tela deve começar sem filtro interno residual do DataTables.
+        tabela.search('');
+        tabela.clear();
+
+        tbody.querySelectorAll('tr').forEach(row => {
+            tabela.row.add(row);
+        });
+
+        tabela.draw();
+        tabela.column(6).visible(exibirFaseRespostaGestora);
+        tabela.columns.adjust().draw(false);
+    }
+
+    posicionarControlesResultados();
+    atualizarVisibilidadePesquisaDataTable(totalResultadosAtual);
+}
+
+
+function atualizarVisibilidadePesquisaDataTable(total = totalResultadosAtual) {
+    const containerPesquisa = document.getElementById('containerPesquisaDataTable');
+
+    if (!containerPesquisa) {
+        return;
+    }
+
+    const deveOcultar = Number(total) <= 1;
+    containerPesquisa.classList.toggle('ocultar-pesquisa-datatable', deveOcultar);
+}
+
+function posicionarControlesResultados() {
+    const containerExibir = document.getElementById('containerExibirDataTable');
+    const containerPesquisa = document.getElementById('containerPesquisaDataTable');
+
+    // Controla a visibilidade independentemente do ciclo de criação do DataTables.
+    atualizarVisibilidadePesquisaDataTable(totalResultadosAtual);
+
+    function moverControles() {
+        const lengthDataTable = document.getElementById('tabelaCCOs_length');
+        const filtroDataTable = document.getElementById('tabelaCCOs_filter');
+
+        if (lengthDataTable && containerExibir && !containerExibir.contains(lengthDataTable)) {
+            containerExibir.appendChild(lengthDataTable);
+        }
+
+        if (filtroDataTable && containerPesquisa && !containerPesquisa.contains(filtroDataTable)) {
+            containerPesquisa.appendChild(filtroDataTable);
+        }
+
+        atualizarVisibilidadePesquisaDataTable(totalResultadosAtual);
+    }
+
+    try {
+        moverControles();
+
+        // initComplete é a garantia principal. Estes retries ficam apenas
+        // como proteção adicional para variações de renderização do navegador.
+        setTimeout(moverControles, 0);
+        setTimeout(moverControles, 100);
+        setTimeout(moverControles, 300);
+    } catch (erroControles) {
+        console.error('Erro ao posicionar controles da tabela:', erroControles);
+    }
+}
+
+function abrirTimeline(ccoId) {
+    window.open(`${window.API_PREFIX}/cco-timeline/${ccoId}`, '_blank');
+}
+
+
+
+function exportarListaCcos() {
+    if (!ultimosFiltrosPesquisa) {
+        alert('Nenhuma pesquisa foi realizada para exportação.');
+        return;
+    }
+
+    const btn = document.getElementById('btnExportarListaCcos');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Exportando...';
+
+    fetch(`${window.API_PREFIX}/api/ccos/export`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(ultimosFiltrosPesquisa)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(error => {
+                throw new Error(error.error || error.mensagem || 'Erro ao exportar CCOs');
+            });
+        }
+
+        const disposition = response.headers.get('Content-Disposition');
+        let filename = 'CCOs_Planificadas.xlsx';
+
+        if (disposition && disposition.includes('filename=')) {
+            filename = disposition.split('filename=')[1].replaceAll('"', '');
+        }
+
+        return response.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(error => {
+        console.error('Erro ao exportar lista de CCOs:', error);
+        alert(error.message);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = totalResultadosAtual === 1
+            ? '<i class="fas fa-file-excel me-1"></i>Exportar item'
+            : '<i class="fas fa-file-excel me-1"></i>Exportar lista';
+    });
+}
+
+function mostrarLoading() {
+    document.getElementById('loadingOverlay').style.display = 'block';
+}
+
+function esconderLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
+</script>
+{% endblock %}

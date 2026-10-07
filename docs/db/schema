@@ -1,0 +1,3 @@
+db.cco_audit_logs.createIndex({ "user_id": 1 });
+db.cco_audit_logs.createIndex({ "resource_id": 1 });
+db.cco_audit_logs.createIndex({ "timestamp": -1 });

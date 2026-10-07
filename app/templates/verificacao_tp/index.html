@@ -1,0 +1,1074 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block styles %}
+<style>
+.filter-card .card-header { background: var(--ppsa-gradient); color: white; }
+.kpi-mini { border-left: 4px solid transparent; }
+.kpi-mini.green  { border-left-color: #48bb78; }
+.kpi-mini.red    { border-left-color: #f56565; }
+.kpi-mini.yellow { border-left-color: #ecc94b; }
+.kpi-mini.blue   { border-left-color: #4299e1; }
+.kpi-mini.cyan   { border-left-color: #0bc5ea; }
+.kpi-mini.purple { border-left-color: #805ad5; }
+.kpi-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', monospace; }
+.table-fixed { max-height: 400px; overflow-y: auto; }
+.table-fixed thead th {
+    position: sticky; top: 0; z-index: 5;
+    background: #f8fafc; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .4px; white-space: nowrap;
+}
+.table td { font-size: 12px; vertical-align: middle; white-space: nowrap; }
+.mono { font-family: 'Courier New', monospace; }
+.st-ok        { background:#c6f6d5; color:#22543d; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-err       { background:#fed7d7; color:#742a2a; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-warn      { background:#fefcbf; color:#744210; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-na        { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-corr      { background:#bee3f8; color:#2a4365; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-corr-inc  { background:#fbd38d; color:#7b341e; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+
+/* Bootstrap 5: background-color deve ser em > td */
+.row-err > td      { background-color: #fff5f5 !important; }
+.row-warn > td     { background-color: #fffff0 !important; }
+.row-corr > td     { background-color: #ebf8ff !important; }
+.row-corr-inc > td { background-color: #fffaf0 !important; }
+.table-hover .row-err:hover > td      { background-color: #fed7d780 !important; }
+.table-hover .row-warn:hover > td     { background-color: #fefcbf80 !important; }
+.table-hover .row-corr:hover > td     { background-color: #bee3f880 !important; }
+.table-hover .row-corr-inc:hover > td { background-color: #fbd38d80 !important; }
+
+.badge-evento  { background:#c6f6d5; color:#22543d; font-size:10px; font-weight:700; }
+.badge-remessa { background:#feebc8; color:#7b341e; font-size:10px; font-weight:700; }
+.badge-nao     { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; }
+th.th-orig { background:#ebf8ff !important; color:#2b6cb0 !important; }
+th.th-efet { background:#f0fff4 !important; color:#276749 !important; }
+th.th-cont { background:#faf5ff !important; color:#553c9a !important; }
+.tp-changed { color: #c53030; font-style: italic; }
+.tp-ok-val  { color: #276749; }
+#loadingOverlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.45); z-index:9999;
+    align-items:center; justify-content:center;
+}
+#loadingOverlay.show { display:flex; }
+.spinner-box { background:#fff; border-radius:12px; padding:32px 48px; text-align:center; }
+.alerta-item { font-size:11px; color:#c53030; }
+.alerta-info { font-size:11px; color:#2b6cb0; }
+.section-divider { border-top: 2px solid #e2e8f0; margin: 24px 0 16px; padding-top: 8px; }
+.tp-big { font-size: 2rem; font-weight: 800; font-family: 'Courier New', monospace; }
+
+/* Tooltip balão TP */
+.tooltip-tp .tooltip-inner {
+    width: 500px !important;
+    max-width: 700px;
+    text-align: left;
+    padding: 0;
+    background: #2d3748;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.tooltip-tp.bs-tooltip-top .tooltip-arrow::before    { border-top-color: #2d3748; }
+.tooltip-tp.bs-tooltip-bottom .tooltip-arrow::before { border-bottom-color: #2d3748; }
+.tooltip-tp.bs-tooltip-start .tooltip-arrow::before  { border-left-color: #2d3748; }
+.tooltip-tp.bs-tooltip-end .tooltip-arrow::before    { border-right-color: #2d3748; }
+.tip-content { padding: 10px 12px; color: #e2e8f0; font-size: 11px; line-height: 1.5; max-width: 800px; }
+.tip-title   { font-weight: 700; margin-bottom: 6px; font-size: 12px; }
+.tip-sep     { border-color: #4a5568; margin: 6px 0; }
+.tip-table   { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
+.tip-table col.cn { width: 100px; }
+.tip-table col.cv { width: 66px; }
+.tip-table th { color: #a0aec0; font-weight: 600; padding: 2px 4px; text-align: left; }
+.tip-table td { color: #e2e8f0; padding: 2px 4px; font-family: 'Courier New', monospace;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tip-table td.r { text-align: right; }
+.tip-ok   { color: #9ae6b4; }
+.tip-err  { color: #fc8181; }
+.tip-warn { color: #fbd38d; }
+.tip-info { color: #90cdf4; }
+
+/* Alerta DEV */
+#alertaDev { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1700px;">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-percent me-2" style="color:#667eea"></i>
+                Verificação de Tract Participation (TP)
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0" style="font-size:13px">
+                    <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                    <li class="breadcrumb-item active">Verificação de TP</li>
+                </ol>
+            </nav>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalHelp">
+            <i class="fas fa-circle-question me-1"></i>Como funciona
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card filter-card shadow-sm mb-4">
+        <div class="card-header py-2">
+            <h6 class="mb-0 text-white"><i class="fas fa-filter me-2"></i>Busca de CCOs</h6>
+        </div>
+        <div class="card-body">
+
+            <!-- Seletor de banco -->
+            <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0">
+                <span class="fw-semibold" style="font-size:12px"><i class="fas fa-database me-1"></i>Banco:</span>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="dbEnv" id="dbPrd" value="prd" checked>
+                    <label class="form-check-label" for="dbPrd" style="font-size:12px">
+                        Produção (PRD) <span class="badge bg-danger" style="font-size:9px">MONGO_URI_PRD</span>
+                    </label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="dbEnv" id="dbDev" value="dev">
+                    <label class="form-check-label" for="dbDev" style="font-size:12px">
+                        Local (DEV) <span class="badge bg-secondary" style="font-size:9px">MONGO_URI</span>
+                    </label>
+                </div>
+                <div id="alertaDev" class="ms-2 d-flex align-items-center gap-1 text-warning" style="font-size:11px">
+                    <i class="fas fa-triangle-exclamation"></i>
+                    <span>DEV pode não ter todos os eventos — análise pode ser incompleta</span>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">ID da CCO</label>
+                    <input type="text" class="form-control form-control-sm" id="cco_id" placeholder="ID exato">
+                </div>
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Contrato CPP</label>
+                    <select class="form-select form-select-sm" id="contratoCpp">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Campo</label>
+                    <select class="form-select form-select-sm" id="campo">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Remessa</label>
+                    <input type="number" class="form-control form-control-sm" id="remessa" placeholder="ex: 10003">
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Rem. Exp.</label>
+                    <input type="number" class="form-control form-control-sm" id="remessaExposicao" placeholder="ex: 3">
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Fase</label>
+                    <select class="form-select form-select-sm" id="faseRemessa">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Origem</label>
+                    <select class="form-select form-select-sm" id="origemDosGastos">
+                        <option value="">Todas</option>
+                        <option value="GASTO_EXCLUSIVO">Exclusivo</option>
+                        <option value="GASTO_JAZIDA_COMPARTILHADA">Jazida Compartilhada</option>
+                        <option value="GASTO_ATIVO_COMPARTILHADO">Ativo Compartilhado</option>
+                        <option value="GASTO_AEGV">AEGV</option>
+                    </select>
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Limite</label>
+                    <select class="form-select form-select-sm" id="limite">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="300">300</option>
+                    </select>
+                </div>
+                <div class="col-12 d-flex gap-2 mt-1">
+                    <button class="btn btn-primary btn-sm px-4" id="btnBuscar">
+                        <i class="fas fa-search me-1"></i>Buscar CCOs
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnLimpar">
+                        <i class="fas fa-eraser me-1"></i>Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de CCOs encontradas -->
+    <div id="tabelaBuscaWrap" style="display:none" class="card shadow-sm mb-4">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span class="fw-bold" style="font-size:13px">
+                <i class="fas fa-list me-1"></i>CCOs encontradas
+                <span class="badge bg-secondary ms-1" id="totalEncontradas">0</span>
+            </span>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-outline-secondary btn-sm" id="btnSelectAll">
+                    <i class="fas fa-check-double me-1"></i>Selec. todas
+                </button>
+                <button class="btn btn-success btn-sm" id="btnAnalisar" disabled>
+                    <i class="fas fa-magnifying-glass-chart me-1"></i>
+                    Analisar TP (<span id="qtdSelecionadas">0</span>)
+                </button>
+            </div>
+        </div>
+        <div class="table-fixed">
+            <table class="table table-hover table-sm mb-0" id="tblBusca">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="chkAll"></th>
+                        <th>ID CCO</th><th>Contrato</th><th>Campo</th>
+                        <th>Remessa</th><th>Rem. Exp.</th><th>Fase</th>
+                        <th>Mês/Ano</th><th>Data Reconhec.</th><th>Origem</th>
+                        <th class="text-end">Valor c/OH</th><th>Recuperada</th>
+                    </tr>
+                </thead>
+                <tbody id="tblBuscaBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div id="kpiBar" style="display:none" class="row g-3 mb-4">
+        <div class="col"><div class="card kpi-mini blue p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Analisadas</div>
+            <div class="kpi-num text-primary" id="kTotal">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini green p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">OK</div>
+            <div class="kpi-num text-success" id="kOk">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini red p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Inconsistentes</div>
+            <div class="kpi-num text-danger" id="kIncons">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini cyan p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Corrigidas</div>
+            <div class="kpi-num" style="color:#0bc5ea" id="kCorrigidas">—</div>
+            <div class="text-muted" style="font-size:9px">TP orig ≠ TP efetivo</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini purple p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Corrig.+Incons.</div>
+            <div class="kpi-num" style="color:#805ad5" id="kCorrIncons">—</div>
+            <div class="text-muted" style="font-size:9px">corrigida mas errada</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini yellow p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Sem TP</div>
+            <div class="kpi-num text-warning" id="kSemTp">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini green p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Orig. via Evento</div>
+            <div class="kpi-num text-success" id="kEvento">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini yellow p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Efet. via Remessa</div>
+            <div class="kpi-num text-warning" id="kRemessa">—</div>
+        </div></div>
+    </div>
+
+    <!-- Barra de ações -->
+    <div id="actionBar" style="display:none" class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+        <input type="text" class="form-control form-control-sm" style="width:220px"
+               id="filtroResultado" placeholder="Filtrar ID, contrato..." oninput="filtrarResultado()">
+        <select class="form-select form-select-sm" style="width:220px" onchange="filtrarStatus(this.value)">
+            <option value="">Todos os status</option>
+            <option value="OK">✅ OK</option>
+            <option value="INCONSISTENTE">❌ Inconsistente</option>
+            <option value="CORRIGIDA">↺ Corrigida</option>
+            <option value="CORRIGIDA_INCONSISTENTE">⚠ Corrigida + Inconsistente</option>
+            <option value="SEM_TP">? Sem TP</option>
+        </select>
+        <button class="btn btn-success btn-sm ms-auto" id="btnCsv">
+            <i class="fas fa-download me-1"></i>Exportar CSV
+        </button>
+    </div>
+
+    <!-- Tabela de resultados -->
+    <div id="tabelaResultadoWrap" style="display:none" class="card shadow-sm">
+        <div class="card-header py-2 d-flex align-items-center gap-3 flex-wrap">
+            <span class="fw-bold" style="font-size:13px">
+                <i class="fas fa-chart-bar me-1"></i>Resultado da Análise de TP
+            </span>
+            <span class="text-muted" style="font-size:11px">
+                <span class="badge" style="background:#ebf8ff;color:#2b6cb0;font-weight:600">Azul = TP criação (evento)</span>
+                <span class="badge ms-1" style="background:#f0fff4;color:#276749;font-weight:600">Verde = TP efetivo atual (remessa)</span>
+                <span class="badge ms-1" style="background:#faf5ff;color:#553c9a;font-weight:600">Roxo = TP contrato</span>
+            </span>
+        </div>
+        <div class="table-fixed" style="max-height:600px">
+            <table class="table table-hover table-sm mb-0" id="tblResultado">
+                <thead>
+                    <tr>
+                        <th>ID CCO</th>
+                        <th>Contrato</th>
+                        <th>Remessa</th>
+                        <th>Fase</th>
+                        <th>Mês/Ano</th>
+                        <th class="text-end">Valor c/OH</th>
+                        <th class="th-orig text-end" title="TP no momento da criação original — via evento da remessa derivada (imutável)">TP Original<br><small>criação/evento</small></th>
+                        <th class="th-efet text-end" title="TP implícito nos valores atuais — calculado via remessa_entity (reflete correções)">TP Efetivo<br><small>atual/remessa</small></th>
+                        <th class="th-cont text-end" title="TP do contrato na data de reconhecimento da CCO">TP Contrato<br><small>na data</small></th>
+                        <th class="th-cont text-end" title="TP do contrato atualmente">TP Contrato<br><small>atual</small></th>
+                        <th class="text-center" title="TP original ≠ TP efetivo = CCO foi recalculada">Corrigida?</th>
+                        <th class="text-center" title="Nº eventos da CCO / Alteração nos campos financeiros raiz — passe o mouse para detalhes">Eventos<br><small>CCO</small></th>
+                        <th>Status</th>
+                        <th>Alertas</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tblResultadoBody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted py-2" style="font-size:11px" id="rodapeResultado"></div>
+    </div>
+
+</div>
+
+<!-- Loading -->
+<div id="loadingOverlay">
+    <div class="spinner-box">
+        <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem"></div>
+        <div class="fw-semibold" id="loadingMsg">Processando...</div>
+        <div class="text-muted" style="font-size:12px">Consultando eventos e remessas...</div>
+    </div>
+</div>
+
+<!-- Modal Preview -->
+<div class="modal fade" id="modalPreview" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--ppsa-gradient)">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-calculator me-2"></i>Preview — Reconstrução com Novo TP
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 mb-3" id="previewInfoCco"></div>
+                <div class="row g-2 mb-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" style="font-size:12px">
+                            TP Original — criação (%)
+                            <span class="text-muted fw-normal d-block" style="font-size:10px">via evento (imutável)</span>
+                        </label>
+                        <input type="number" class="form-control form-control-sm" id="previewTpOriginal"
+                               step="0.0001" readonly style="background:#ebf8ff">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" style="font-size:12px">
+                            TP Efetivo Atual (%)
+                            <span class="text-muted fw-normal d-block" style="font-size:10px">via remessa (atual)</span>
+                        </label>
+                        <input type="number" class="form-control form-control-sm" id="previewTpEfetivo"
+                               step="0.0001" readonly style="background:#f0fff4">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" style="font-size:12px">Novo TP para simular (%)</label>
+                        <input type="number" class="form-control form-control-sm" id="previewTpNovo"
+                               step="0.0001" placeholder="ex: 60.4080">
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary btn-sm w-100" id="btnCalcularPreview">
+                            <i class="fas fa-play me-1"></i>Calcular Preview
+                        </button>
+                    </div>
+                </div>
+                <div id="previewResultado" style="display:none">
+                    <div class="section-divider fw-bold" style="font-size:12px">
+                        <i class="fas fa-table me-1"></i>Comparativo de Valores
+                    </div>
+                    <table class="table table-sm table-bordered" style="font-size:12px">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Campo</th>
+                                <th class="text-end">CCO Original</th>
+                                <th class="text-end">Simulado (novo TP)</th>
+                                <th class="text-end">Diferença (R$)</th>
+                                <th class="text-end">Variação (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblPreviewBody"></tbody>
+                    </table>
+                    <div class="alert alert-info py-2 mt-2" style="font-size:12px">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Este é apenas um <strong>preview simulado</strong> — nenhum valor foi alterado.
+                        Para aplicar a correção, use a funcionalidade de <strong>Recálculo de TP</strong>.
+                    </div>
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-warning btn-sm" id="btnIrRecalculo">
+                            <i class="fas fa-tools me-1"></i>Ir para Recálculo de TP
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Help -->
+<div class="modal fade" id="modalHelp" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--ppsa-gradient)">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-circle-question me-2"></i>Como funciona a Verificação de TP
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:13px">
+
+                <!-- Banco de dados -->
+                <div class="alert alert-warning py-2 mb-3" style="font-size:12px">
+                    <i class="fas fa-database me-1"></i>
+                    <strong>Atenção ao banco de dados:</strong> a verificação do TP original depende da coleção
+                    <code>event</code>, que registra o histórico de alterações dos agregados. Essa coleção
+                    geralmente está completa <strong>apenas em Produção (PRD)</strong>. Em ambientes DEV,
+                    o campo <em>TP Original/Criação</em> pode retornar "não encontrado" — use DEV apenas
+                    para testes de conectividade ou análises do TP Efetivo (que usa a remessa_entity, disponível em ambos os ambientes).
+                </div>
+
+                <h6 class="text-primary"><i class="fas fa-triangle-exclamation me-1"></i>O Problema</h6>
+                <p>O TP cadastrado no contrato pode ser corrigido diretamente no banco sem manter histórico. Além disso, uma CCO pode ser recalculada após a criação — e após esse recálculo, os eventos ainda guardam o TP original (imutável).</p>
+
+                <h6 class="text-primary mt-3"><i class="fas fa-layer-group me-1"></i>Estratégia: duas perspectivas sempre executadas</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded h-100" style="background:#ebf8ff;border:1px solid #bee3f8">
+                            <div class="fw-bold mb-1" style="color:#2b6cb0"><i class="fas fa-history me-1"></i>TP Original — na criação</div>
+                            <p class="mb-1" style="font-size:12px">Busca na coleção <code>event</code> o estado da <code>remessa_derivada_campo_entity</code> imediatamente anterior à criação da CCO. O campo <code>tractParticipationPercentual</code> dos itens contém o TP vigente naquele momento.</p>
+                            <p class="mb-0" style="font-size:11px;color:#4a5568">⚠ Fonte imutável — não muda mesmo após recálculos. Passe o mouse sobre o valor para ver o ID e data do evento.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded h-100" style="background:#f0fff4;border:1px solid #9ae6b4">
+                            <div class="fw-bold mb-1" style="color:#276749"><i class="fas fa-calculator me-1"></i>TP Efetivo — atual</div>
+                            <p class="mb-1" style="font-size:12px">Deriva matematicamente: divide <code>valorReconhecido</code> da CCO pela soma dos valores brutos da fase em <code>remessa_entity</code>.</p>
+                            <p class="mb-1" style="font-size:11px;color:#4a5568">✓ Reflete correções — representa o estado atual da CCO. Funciona em DEV e PRD.</p>
+                            <code style="font-size:10px">TP = CCO.valorReconhecido / Σ remessa.valorReconhecido(fase)</code>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="mt-3"><i class="fas fa-code-compare me-1"></i>Lógica de status</h6>
+                <table class="table table-sm table-bordered" style="font-size:12px">
+                    <thead class="table-light">
+                        <tr><th>Status</th><th>Condição</th><th>Ação recomendada</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="table-success">
+                            <td><span class="st-ok">✓ OK</span></td>
+                            <td>TP efetivo alinhado com o contrato atual</td>
+                            <td>Nenhuma</td>
+                        </tr>
+                        <tr class="table-danger">
+                            <td><span class="st-err">✗ INCONS.</span></td>
+                            <td>TP efetivo difere do contrato (sem correção prévia)</td>
+                            <td>Aplicar recálculo de TP</td>
+                        </tr>
+                        <tr style="background:#ebf8ff">
+                            <td><span class="st-corr">↺ Corrigida</span></td>
+                            <td>TP original ≠ TP efetivo E efetivo está correto agora</td>
+                            <td>CCO já foi corrigida — informativo</td>
+                        </tr>
+                        <tr style="background:#fffaf0">
+                            <td><span class="st-corr-inc">⚠ Corrig.+Incons.</span></td>
+                            <td>TP original ≠ TP efetivo E efetivo ainda diverge do contrato</td>
+                            <td>Aplicar novo recálculo</td>
+                        </tr>
+                        <tr class="table-warning">
+                            <td><span class="st-warn">? Sem TP</span></td>
+                            <td>Nenhuma abordagem determinou o TP (evento ausente + remessa_entity zerada)</td>
+                            <td>Investigar manualmente</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h6 class="mt-3"><i class="fas fa-database me-1"></i>Coluna "Eventos CCO" — tooltip com detalhes</h6>
+                <p>Mostra o total de eventos registrados para a CCO. Passe o mouse para ver um balão com:</p>
+                <ul style="font-size:12px">
+                    <li><strong>Total de eventos</strong> registrados na coleção <code>event</code> para essa CCO</li>
+                    <li><strong>Badge amarelo "Alterada"</strong>: aparece quando campos financeiros raiz (<code>valorReconhecido</code>, <code>valorReconhecidoComOH</code>, <code>overHeadExploracao</code>, <code>overHeadProducao</code>, etc.) diferem entre o evento de criação (version=1) e o estado atual da CCO</li>
+                    <li>O balão exibe uma tabela com cada campo alterado, o valor na criação, o valor atual e a diferença</li>
+                </ul>
+
+                <h6 class="mt-3"><i class="fas fa-link me-1"></i>Integração com Recálculo de TP</h6>
+                <p style="font-size:12px">
+                    O endpoint <code>GET /verificacao-tp/api/cco/&lt;cco_id&gt;</code> pode ser chamado pela tela de
+                    Recálculo de TP para obter o diagnóstico completo de TP de uma CCO específica (TP efetivo,
+                    TP original, TP do contrato, status e alertas) — sem precisar executar a busca manual.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = {
+    contratos : "{{ url_for('verificacao_tp.api_contratos') }}",
+    campos    : "{{ url_for('verificacao_tp.api_campos') }}",
+    fases     : "{{ url_for('verificacao_tp.api_fases') }}",
+    buscar    : "{{ url_for('verificacao_tp.api_buscar') }}",
+    analisar  : "{{ url_for('verificacao_tp.api_analisar') }}",
+    preview   : "{{ url_for('verificacao_tp.api_preview') }}",
+    csv       : "{{ url_for('verificacao_tp.download_csv') }}",
+    recalculo : "{{ url_for('recalculo_ui.index_recalculo') }}",
+};
+
+let _ccosBuscadas = [];
+let _resultados = [];
+let _sid = '';
+let _previewCcoId = '';
+let _previewTpOriginal = null;
+
+// Mapa de tooltips: id-do-elemento → html do conteúdo
+const _tipMap = {};
+let _tipCounter = 0;
+let _tooltipInstances = [];
+
+function _mkTipId() { return 'tp_tip_' + (++_tipCounter); }
+
+function dbEnv() {
+    return document.querySelector('input[name="dbEnv"]:checked')?.value || 'prd';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([carregarContratos(), carregarFases()]);
+    document.getElementById('contratoCpp').addEventListener('change', carregarCampos);
+    document.getElementById('btnBuscar').addEventListener('click', buscar);
+    document.getElementById('btnLimpar').addEventListener('click', limpar);
+    document.getElementById('btnSelectAll').addEventListener('click', selecionarTodas);
+    document.getElementById('chkAll').addEventListener('change', toggleTodas);
+    document.getElementById('btnAnalisar').addEventListener('click', analisar);
+    document.getElementById('btnCsv').addEventListener('click', () =>
+        window.location = API.csv + (_sid ? `?sid=${_sid}` : ''));
+    document.getElementById('btnCalcularPreview').addEventListener('click', calcularPreview);
+    document.getElementById('btnIrRecalculo').addEventListener('click', irRecalculo);
+
+    // Seletor de banco
+    document.querySelectorAll('input[name="dbEnv"]').forEach(r => r.addEventListener('change', async () => {
+        const isDev = dbEnv() === 'dev';
+        document.getElementById('alertaDev').style.display = isDev ? '' : 'none';
+        await Promise.all([carregarContratos(), carregarFases()]);
+        document.getElementById('campo').innerHTML = '<option value="">Todos</option>';
+    }));
+});
+
+// ---------------------------------------------------------------------------
+// Carregar filtros
+// ---------------------------------------------------------------------------
+
+async function carregarContratos() {
+    const r = await fetch(`${API.contratos}?db=${dbEnv()}`);
+    const d = await r.json();
+    const sel = document.getElementById('contratoCpp');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.contratos || []).forEach(c => sel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+}
+async function carregarCampos() {
+    const c = document.getElementById('contratoCpp').value;
+    const r = await fetch(`${API.campos}?contrato=${encodeURIComponent(c)}&db=${dbEnv()}`);
+    const d = await r.json();
+    const sel = document.getElementById('campo');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.campos || []).forEach(x => sel.insertAdjacentHTML('beforeend', `<option value="${x}">${x}</option>`));
+}
+async function carregarFases() {
+    const r = await fetch(`${API.fases}?db=${dbEnv()}`);
+    const d = await r.json();
+    const sel = document.getElementById('faseRemessa');
+    sel.innerHTML = '<option value="">Todas</option>';
+    (d.fases || []).forEach(f => sel.insertAdjacentHTML('beforeend', `<option value="${f}">${f}</option>`));
+}
+
+// ---------------------------------------------------------------------------
+// Busca
+// ---------------------------------------------------------------------------
+
+async function buscar() {
+    const filtros = {
+        db: dbEnv(),
+        cco_id: document.getElementById('cco_id').value.trim(),
+        contratoCpp: document.getElementById('contratoCpp').value,
+        campo: document.getElementById('campo').value,
+        remessa: document.getElementById('remessa').value,
+        remessaExposicao: document.getElementById('remessaExposicao').value,
+        faseRemessa: document.getElementById('faseRemessa').value,
+        origemDosGastos: document.getElementById('origemDosGastos').value,
+        limite: document.getElementById('limite').value,
+    };
+    loading(true, 'Buscando CCOs...');
+    try {
+        const r = await fetch(API.buscar, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtros)});
+        const d = await r.json();
+        loading(false);
+        if (!d.success) { alert('Erro: ' + d.error); return; }
+        _ccosBuscadas = d.ccos || [];
+        renderizarBusca(_ccosBuscadas);
+    } catch(e) { loading(false); alert('Erro: ' + e); }
+}
+
+function renderizarBusca(ccos) {
+    const tbody = document.getElementById('tblBuscaBody');
+    tbody.innerHTML = '';
+    document.getElementById('tabelaBuscaWrap').style.display = ccos.length ? '' : 'none';
+    document.getElementById('totalEncontradas').textContent = ccos.length;
+    ccos.forEach(c => {
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr>
+            <td><input type="checkbox" class="cco-chk" value="${c._id}"></td>
+            <td class="mono" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${c._id}">${c._id}</td>
+            <td>${c.contratoCpp||''}</td><td>${c.campo||''}</td>
+            <td class="mono">${c.remessa||''}</td><td class="mono">${c.remessaExposicao||''}</td>
+            <td>${c.faseRemessa||''}</td><td class="mono">${c.mesAnoReferencia||''}</td>
+            <td class="text-muted">${(c.dataReconhecimento||'').substring(0,10)}</td>
+            <td style="font-size:10px">${(c.origemDosGastos||'').replace('GASTO_','')}</td>
+            <td class="mono text-end">${fmt(c.valorReconhecidoComOH)}</td>
+            <td class="text-center">${c.flgRecuperado ? '<span class="badge bg-success" style="font-size:9px">✓</span>' : '<span class="text-muted">—</span>'}</td>
+        </tr>`);
+    });
+    document.querySelectorAll('.cco-chk').forEach(chk => chk.addEventListener('change', atualizarBotaoAnalisar));
+}
+
+function atualizarBotaoAnalisar() {
+    const qtd = document.querySelectorAll('.cco-chk:checked').length;
+    document.getElementById('qtdSelecionadas').textContent = qtd;
+    document.getElementById('btnAnalisar').disabled = qtd === 0;
+}
+function toggleTodas() {
+    const checked = document.getElementById('chkAll').checked;
+    document.querySelectorAll('.cco-chk').forEach(c => c.checked = checked);
+    atualizarBotaoAnalisar();
+}
+function selecionarTodas() {
+    document.querySelectorAll('.cco-chk').forEach(c => c.checked = true);
+    document.getElementById('chkAll').checked = true;
+    atualizarBotaoAnalisar();
+}
+
+// ---------------------------------------------------------------------------
+// Análise
+// ---------------------------------------------------------------------------
+
+async function analisar() {
+    const ids = [...document.querySelectorAll('.cco-chk:checked')].map(c => c.value);
+    if (!ids.length) return;
+    loading(true, `Analisando ${ids.length} CCO(s)...`);
+    try {
+        const r = await fetch(API.analisar, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cco_ids: ids, db: dbEnv()})
+        });
+        const d = await r.json();
+        loading(false);
+        if (!d.success) { alert('Erro: ' + d.error); return; }
+        _resultados = d.resultados || [];
+        _sid = d.sid || '';
+        renderizarKpis(d.estatisticas || {});
+        renderizarResultado(_resultados);
+    } catch(e) { loading(false); alert('Erro: ' + e); }
+}
+
+function renderizarKpis(st) {
+    document.getElementById('kTotal').textContent      = st.total ?? '—';
+    document.getElementById('kOk').textContent         = st.ok ?? '—';
+    document.getElementById('kIncons').textContent     = st.inconsistentes ?? '—';
+    document.getElementById('kSemTp').textContent      = st.sem_tp ?? '—';
+    document.getElementById('kCorrigidas').textContent = st.corrigidas ?? 0;
+    document.getElementById('kCorrIncons').textContent = st.corrigidas_inconsistentes ?? 0;
+    document.getElementById('kEvento').textContent     = (st.por_metodo_original || {}).EVENTO ?? 0;
+    document.getElementById('kRemessa').textContent    = (st.por_metodo_efetivo  || {}).REMESSA ?? 0;
+    document.getElementById('kpiBar').style.display    = '';
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de badge e estilo
+// ---------------------------------------------------------------------------
+
+function metodoBadge(m) {
+    if (m === 'EVENTO')        return `<span class="badge badge-evento">EVENTO</span>`;
+    if (m === 'REMESSA')       return `<span class="badge badge-remessa">REMESSA</span>`;
+    return `<span class="badge badge-nao">—</span>`;
+}
+function statusBadge(s) {
+    if (s === 'OK')                      return `<span class="st-ok">✓ OK</span>`;
+    if (s === 'INCONSISTENTE')           return `<span class="st-err">✗ INCONS.</span>`;
+    if (s === 'CORRIGIDA')               return `<span class="st-corr">↺ Corrigida</span>`;
+    if (s === 'CORRIGIDA_INCONSISTENTE') return `<span class="st-corr-inc">⚠ Corrig.+Incons.</span>`;
+    if (s === 'SEM_TP')                  return `<span class="st-warn">? Sem TP</span>`;
+    return `<span class="st-na">${s}</span>`;
+}
+function rowClass(s) {
+    if (s === 'INCONSISTENTE')           return 'row-err';
+    if (s === 'CORRIGIDA')               return 'row-corr';
+    if (s === 'CORRIGIDA_INCONSISTENTE') return 'row-corr-inc';
+    if (s === 'SEM_TP')                  return 'row-warn';
+    return '';
+}
+
+// ---------------------------------------------------------------------------
+// Tooltips balão ricos
+// ---------------------------------------------------------------------------
+
+function fmtTip(v, dec=2) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString('pt-BR', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+
+const _CAMPO_ALIAS = {
+    valorLancamentoTotal:           'Lanç. Total',
+    valorReconhecido:               'Reconhecido',
+    valorReconhecivel:              'Reconhecível',
+    valorNaoReconhecido:            'Não Reconhecido',
+    valorNaoPassivelRecuperacao:    'N. Passível Rec.',
+    valorReconhecidoExploracao:     'Rec. Exploração',
+    valorReconhecidoProducao:       'Rec. Produção',
+    valorRecusado:                  'Recusado',
+    overHeadExploracao:             'OH Exploração',
+    overHeadProducao:               'OH Produção',
+    overHeadTotal:                  'OH Total',
+    valorReconhecidoComOH:          'Rec. c/OH',
+};
+
+function buildEventosTipHtml(r) {
+    const campos = r.campos_alterados_cco || [];
+    const qtd    = r.qtd_eventos_cco || 0;
+
+    let html = `<div class="tip-content">`;
+    html += `<div class="tip-title tip-info">📅 Eventos da CCO</div>`;
+    html += `<div style="margin-bottom:4px">Total: <strong>${qtd}</strong> evento(s)</div>`;
+
+    if (campos.length === 0) {
+        html += `<div class="tip-ok">✓ Campos financeiros raiz inalterados</div>`;
+    } else {
+        html += `<hr class="tip-sep">`;
+        html += `<div class="tip-warn" style="font-weight:700;margin-bottom:4px">⚠ Campos alterados:</div>`;
+        html += `<table class="tip-table"><colgroup><col class="cn"><col class="cv"><col class="cv"><col class="cv"></colgroup>`;
+        html += `<tr><th>Campo</th><th class="r">Criação</th><th class="r">Atual</th><th class="r">Δ</th></tr>`;
+        campos.forEach(c => {
+            const diff    = c.diferenca;
+            const diffCls = Math.abs(diff) < 1 ? '' : diff > 0 ? 'tip-ok' : 'tip-err';
+            const sign    = diff >= 0 ? '+' : '';
+            const label   = _CAMPO_ALIAS[c.campo] || c.campo;
+            html += `<tr>
+                <td title="${c.campo}">${label}</td>
+                <td class="r">${fmtTip(c.valor_criacao)}</td>
+                <td class="r">${fmtTip(c.valor_atual)}</td>
+                <td class="r ${diffCls}">${sign}${fmtTip(diff)}</td>
+            </tr>`;
+        });
+        html += `</table>`;
+    }
+    html += `</div>`;
+    return html;
+}
+
+function buildTpOrigTipHtml(r) {
+    const ab2 = r.detalhe_abordagem2 || {};
+    if (!ab2.event_id) return null;
+
+    const eventIdShort = ab2.event_id.length > 20
+        ? ab2.event_id.substring(0, 16) + '…'
+        : ab2.event_id;
+    const eventDate = (ab2.event_date || '').substring(0, 19);
+    const gastos    = ab2.gastos_amostra || [];
+
+    let html = `<div class="tip-content">`;
+    html += `<div class="tip-title tip-info">📋 Evento da Remessa Derivada</div>`;
+    html += `<div style="margin-bottom:2px">ID: <code style="font-size:10px;color:#e2e8f0">${ab2.event_id}</code></div>`;
+    if (eventDate) html += `<div style="margin-bottom:6px;color:#a0aec0">Data: ${eventDate}</div>`;
+    if (r.tp_original_percentual !== null) {
+        html += `<div>TP extraído: <strong class="tip-info">${r.tp_original_percentual.toFixed(6)}%</strong></div>`;
+    }
+    if (gastos.length > 0) {
+        html += `<hr class="tip-sep">`;
+        html += `<div style="color:#a0aec0;font-weight:600;margin-bottom:4px">Amostra de gastos (até 3):</div>`;
+        html += `<table class="tip-table">`;
+        html += `<tr><th>Item</th><th class="r">TP (%)</th><th class="r">Valor c/TP</th></tr>`;
+        gastos.forEach(g => {
+            html += `<tr>
+                <td>${g.item ?? '—'}</td>
+                <td class="r tip-info">${(g.tractParticipationPercentual ?? 0).toFixed(4)}%</td>
+                <td class="r">${fmtTip(g.valorMoedaOBJReal)}</td>
+            </tr>`;
+        });
+        html += `</table>`;
+    }
+    html += `</div>`;
+    return html;
+}
+
+function disposeTooltips() {
+    _tooltipInstances.forEach(t => { try { t.dispose(); } catch(e) {} });
+    _tooltipInstances = [];
+    Object.keys(_tipMap).forEach(k => delete _tipMap[k]);
+    _tipCounter = 0;
+}
+
+function initTooltips() {
+    Object.entries(_tipMap).forEach(([id, entry]) => {
+        const el = document.querySelector(`[data-tip-id="${id}"]`);
+        if (!el) return;
+        const html      = typeof entry === 'string' ? entry : entry.html;
+        const placement = typeof entry === 'string' ? 'auto' : (entry.placement || 'auto');
+        try {
+            const tip = new bootstrap.Tooltip(el, {
+                html: true,
+                sanitize: false,
+                title: () => html,
+                placement: placement,
+                customClass: 'tooltip-tp',
+                trigger: 'hover focus',
+            });
+            _tooltipInstances.push(tip);
+        } catch(e) {}
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Renderizar resultado
+// ---------------------------------------------------------------------------
+
+function renderizarResultado(dados) {
+    disposeTooltips();
+
+    const tbody = document.getElementById('tblResultadoBody');
+    tbody.innerHTML = '';
+    document.getElementById('tabelaResultadoWrap').style.display = '';
+    document.getElementById('actionBar').style.display = '';
+
+    dados.forEach(r => {
+        if (r.erro) {
+            tbody.insertAdjacentHTML('beforeend', `
+            <tr class="row-err"><td colspan="15" class="text-danger mono" style="font-size:11px">
+                ERRO: ${r.cco_id} — ${r.erro}
+            </td></tr>`);
+            return;
+        }
+
+        const alertasHtml = (r.alertas || []).length
+            ? r.alertas.map(a => {
+                const info = a.includes('recalculada') || a.includes('corrigida') || a.includes('Corrigida');
+                return `<div class="${info ? 'alerta-info' : 'alerta-item'}">
+                    <i class="fas fa-${info ? 'info-circle text-info' : 'exclamation-circle'} me-1"></i>${a}
+                </div>`;
+              }).join('')
+            : '<span class="text-muted">—</span>';
+
+        // ── TP Original — coluna azul, com tooltip se houver evento ──────────
+        const tpOrigCss = r.original_alinhado_contrato ? 'tp-ok-val' : 'tp-changed';
+        let tpOrigHtml;
+        if (r.tp_original_percentual !== null) {
+            const origTipHtml = buildTpOrigTipHtml(r);
+            if (origTipHtml) {
+                const origTipId = _mkTipId();
+                _tipMap[origTipId] = { html: origTipHtml, placement: 'auto' };
+                tpOrigHtml = `<span class="${tpOrigCss}" data-tip-id="${origTipId}" style="cursor:help;border-bottom:1px dashed currentColor">${r.tp_original_percentual.toFixed(6)}%</span>`;
+            } else {
+                tpOrigHtml = `<span class="${tpOrigCss}">${r.tp_original_percentual.toFixed(6)}%</span>`;
+            }
+        } else {
+            tpOrigHtml = `<span class="text-muted">—</span>`;
+        }
+        tpOrigHtml += `<span class="d-block mt-1">${metodoBadge(r.metodo_original)}</span>`;
+
+        // ── TP Efetivo — coluna verde ─────────────────────────────────────────
+        const tpEfetCss = r.efetivo_alinhado_contrato ? 'tp-ok-val' : 'tp-changed';
+        const tpEfetVal = r.tp_efetivo_percentual !== null
+            ? `<span class="${tpEfetCss}">${r.tp_efetivo_percentual.toFixed(6)}%</span>`
+            : `<span class="text-muted">—</span>`;
+        const tpEfetHtml = `${tpEfetVal}<span class="d-block mt-1">${metodoBadge(r.metodo_efetivo)}</span>`;
+
+        // ── Badge "Corrigida?" ────────────────────────────────────────────────
+        const corrBadge = r.tp_foi_corrigido
+            ? `<span class="badge bg-info text-dark" style="font-size:10px"
+                   title="TP original (${r.tp_original_percentual?.toFixed(6)}%) ≠ TP efetivo (${r.tp_efetivo_percentual?.toFixed(6)}%)">↺ Sim</span>`
+            : `<span class="text-muted" style="font-size:11px">—</span>`;
+
+        // ── Badge "Eventos CCO" — tooltip balão, abre para a esquerda ────────
+        const evTipId  = _mkTipId();
+        _tipMap[evTipId] = { html: buildEventosTipHtml(r), placement: 'left' };
+
+        const eventosBadge = r.cco_teve_modificacoes
+            ? `<span class="badge bg-warning text-dark" style="font-size:10px;cursor:pointer"
+                   data-tip-id="${evTipId}">${r.qtd_eventos_cco} ev. / Alterada</span>`
+            : `<span class="text-muted" style="font-size:11px;cursor:default"
+                   data-tip-id="${evTipId}">${r.qtd_eventos_cco} ev.</span>`;
+
+        // ── Botão preview ─────────────────────────────────────────────────────
+        const btnPreview = (r.tp_efetivo_percentual !== null || r.tp_original_percentual !== null)
+            ? `<button class="btn btn-outline-primary btn-sm" style="font-size:10px;padding:2px 8px"
+                   onclick="abrirPreview('${r.cco_id}', ${r.tp_original_percentual ?? 'null'}, ${r.tp_efetivo_percentual ?? 'null'}, ${r.tp_contrato_atual ?? 'null'})">
+                   <i class="fas fa-eye me-1"></i>Preview</button>`
+            : '';
+
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr class="${rowClass(r.status)}" data-status="${r.status}">
+            <td class="mono" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${r.cco_id}">${r.cco_id}</td>
+            <td>${r.contratoCpp}</td>
+            <td class="mono">${r.remessa} <span class="text-muted">(${r.remessaExposicao})</span></td>
+            <td>${r.faseRemessa}</td>
+            <td class="mono">${r.mesAnoReferencia}</td>
+            <td class="mono text-end">${fmt(r.valorReconhecidoComOH)}</td>
+            <td class="mono text-end" style="background:#f7fbff">${tpOrigHtml}</td>
+            <td class="mono text-end" style="background:#f7fff7">${tpEfetHtml}</td>
+            <td class="mono text-end" style="background:#fdfaff">${r.tp_contrato_na_data !== null ? r.tp_contrato_na_data.toFixed(6)+'%' : '—'}</td>
+            <td class="mono text-end" style="background:#fdfaff">${r.tp_contrato_atual !== null ? r.tp_contrato_atual.toFixed(6)+'%' : '—'}</td>
+            <td class="text-center">${corrBadge}</td>
+            <td class="text-center">${eventosBadge}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td style="max-width:260px;white-space:normal;line-height:1.5">${alertasHtml}</td>
+            <td>${btnPreview}</td>
+        </tr>`);
+    });
+
+    document.getElementById('rodapeResultado').textContent = `${dados.length} CCO(s) analisada(s)`;
+
+    // Inicializa tooltips Bootstrap depois de renderizar o DOM
+    requestAnimationFrame(() => initTooltips());
+}
+
+// ---------------------------------------------------------------------------
+// Filtros de resultado
+// ---------------------------------------------------------------------------
+
+function filtrarResultado() {
+    const q = document.getElementById('filtroResultado').value.toLowerCase();
+    document.querySelectorAll('#tblResultadoBody tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+function filtrarStatus(val) {
+    document.querySelectorAll('#tblResultadoBody tr').forEach(tr => {
+        if (!val) { tr.style.display = ''; return; }
+        tr.style.display = (tr.dataset.status === val) ? '' : 'none';
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Preview
+// ---------------------------------------------------------------------------
+
+function abrirPreview(ccoId, tpOriginal, tpEfetivo, tpAtual) {
+    _previewCcoId = ccoId;
+    _previewTpOriginal = tpOriginal;
+    document.getElementById('previewTpOriginal').value = tpOriginal !== null ? tpOriginal.toFixed(6) : '';
+    document.getElementById('previewTpEfetivo').value  = tpEfetivo  !== null ? tpEfetivo.toFixed(6)  : '';
+    document.getElementById('previewTpNovo').value     = tpAtual    !== null ? tpAtual.toFixed(6)    : '';
+    document.getElementById('previewResultado').style.display = 'none';
+    document.getElementById('tblPreviewBody').innerHTML = '';
+    const cco = _resultados.find(r => r.cco_id === ccoId);
+    if (cco) {
+        document.getElementById('previewInfoCco').innerHTML = `
+            <div class="col-auto"><span class="badge bg-secondary">${cco.contratoCpp}</span></div>
+            <div class="col-auto"><span class="badge bg-info text-dark">${cco.faseRemessa}</span></div>
+            <div class="col-auto"><small class="text-muted">Remessa ${cco.remessa} / ${cco.mesAnoReferencia}</small></div>
+            <div class="col-auto"><small class="text-muted mono">Valor c/OH: R$ ${fmt(cco.valorReconhecidoComOH)}</small></div>
+            <div class="col-auto">${statusBadge(cco.status)}</div>`;
+    }
+    new bootstrap.Modal(document.getElementById('modalPreview')).show();
+}
+
+async function calcularPreview() {
+    const novoTp = parseFloat(document.getElementById('previewTpNovo').value);
+    if (isNaN(novoTp) || novoTp <= 0) { alert('Informe um TP válido'); return; }
+    document.getElementById('btnCalcularPreview').disabled = true;
+    document.getElementById('btnCalcularPreview').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calculando...';
+    try {
+        const r = await fetch(API.preview, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cco_id: _previewCcoId,
+                novo_tp_percentual: novoTp,
+                tp_original_percentual: _previewTpOriginal,
+                db: dbEnv(),
+            })
+        });
+        const d = await r.json();
+        if (!d.success) { alert('Erro: ' + d.error); return; }
+        renderizarPreview(d.preview);
+    } catch(e) { alert('Erro: ' + e); }
+    finally {
+        document.getElementById('btnCalcularPreview').disabled = false;
+        document.getElementById('btnCalcularPreview').innerHTML = '<i class="fas fa-play me-1"></i>Calcular Preview';
+    }
+}
+
+function renderizarPreview(p) {
+    const cco = _resultados.find(r => r.cco_id === _previewCcoId);
+    if (!cco) return;
+    const campos = [
+        {label:'Valor Reconhecido Exploração', orig: cco.valorReconhecidoExploracao ?? 0, novo: p.valorReconhecidoExploracao_novo},
+        {label:'Valor Reconhecido Produção',   orig: cco.valorReconhecidoProducao   ?? 0, novo: p.valorReconhecidoProducao_novo},
+        {label:'Valor Reconhecido Total',       orig: cco.valorReconhecido,                novo: p.valorReconhecido_novo},
+        {label:'OverHead Produção',             orig: null,                                novo: p.overHeadProducao_novo},
+        {label:'OverHead Total',                orig: null,                                novo: p.overHeadTotal_novo},
+        {label:'Valor c/OH (RESULTADO FINAL)',  orig: cco.valorReconhecidoComOH,           novo: p.valorReconhecidoComOH_novo, bold: true},
+    ];
+    const tbody = document.getElementById('tblPreviewBody');
+    tbody.innerHTML = '';
+    campos.forEach(c => {
+        if (c.orig === null) {
+            tbody.insertAdjacentHTML('beforeend', `
+            <tr><td class="${c.bold?'fw-bold':''}">${c.label}</td>
+            <td class="text-end text-muted">—</td><td class="mono text-end">${fmt(c.novo)}</td>
+            <td class="text-end">—</td><td class="text-end">—</td></tr>`);
+            return;
+        }
+        const diff = c.novo - c.orig;
+        const pct  = c.orig !== 0 ? (diff / Math.abs(c.orig) * 100) : 0;
+        const cls  = Math.abs(diff) < 1 ? '' : diff > 0 ? 'text-success' : 'text-danger';
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr class="${c.bold?'table-warning fw-bold':''}">
+            <td>${c.label}</td>
+            <td class="mono text-end">${fmt(c.orig)}</td>
+            <td class="mono text-end">${fmt(c.novo)}</td>
+            <td class="mono text-end ${cls}">${diff>=0?'+':''}${fmt(diff)}</td>
+            <td class="mono text-end ${cls}">${pct>=0?'+':''}${pct.toFixed(4)}%</td>
+        </tr>`);
+    });
+    document.getElementById('previewResultado').style.display = '';
+}
+
+function irRecalculo() {
+    const novoTp = document.getElementById('previewTpNovo').value;
+    window.location.href = API.recalculo + `?cco_id=${_previewCcoId}&tp_original=${_previewTpOriginal}&tp_correcao=${novoTp}`;
+}
+
+// ---------------------------------------------------------------------------
+// Utilitários
+// ---------------------------------------------------------------------------
+
+function fmt(v, dec=2) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString('pt-BR', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function loading(show, msg) {
+    document.getElementById('loadingOverlay').classList.toggle('show', show);
+    if (msg) document.getElementById('loadingMsg').textContent = msg;
+}
+function limpar() {
+    ['cco_id','remessa','remessaExposicao'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    ['contratoCpp','campo','faseRemessa','origemDosGastos','limite'].forEach(id => { const el=document.getElementById(id); if(el) el.value=id==='limite'?'100':''; });
+    document.getElementById('tabelaBuscaWrap').style.display = 'none';
+    document.getElementById('tabelaResultadoWrap').style.display = 'none';
+    document.getElementById('actionBar').style.display = 'none';
+    document.getElementById('kpiBar').style.display = 'none';
+    disposeTooltips();
+    _ccosBuscadas=[]; _resultados=[]; _sid='';
+}
+</script>
+{% endblock %}

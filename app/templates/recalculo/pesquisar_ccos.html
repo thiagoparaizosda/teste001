@@ -1,0 +1,571 @@
+<!-- templates/recalculo/pesquisar_ccos.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Ajuste responsivo da tabela de resultados:
+   mantém as colunas originais e cria rolagem horizontal somente quando necessário */
+.resultados-card-body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.tabela-resultados-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+#tabelaResultados {
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0 !important;
+    white-space: nowrap;
+}
+
+#tabelaResultados th,
+#tabelaResultados td {
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+#tabelaResultados td:nth-child(9) {
+    text-align: right;
+}
+
+#tabelaResultados td:last-child {
+    text-align: center;
+}
+
+#tabelaResultados td:last-child .btn-group {
+    white-space: nowrap;
+}
+
+.tabela-resultados-scroll::-webkit-scrollbar {
+    height: 10px;
+}
+
+.tabela-resultados-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+}
+
+.tabela-resultados-scroll::-webkit-scrollbar-track {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Controles do DataTables: quantidade por página, busca e paginação */
+#tabelaResultados_wrapper {
+    width: 100%;
+    max-width: 100%;
+}
+
+#tabelaResultados_wrapper .row {
+    width: 100%;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+#tabelaResultados_wrapper .dataTables_length,
+#tabelaResultados_wrapper .dataTables_filter,
+#tabelaResultados_wrapper .dataTables_info,
+#tabelaResultados_wrapper .dataTables_paginate {
+    padding: 0.75rem;
+}
+
+#tabelaResultados_wrapper .dataTables_length label,
+#tabelaResultados_wrapper .dataTables_filter label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+#tabelaResultados_wrapper .dataTables_length select {
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
+#tabelaResultados_wrapper .dataTables_filter input {
+    margin-left: 4px;
+}
+
+#tabelaResultados_wrapper .dataTables_scroll {
+    width: 100%;
+}
+
+#tabelaResultados_wrapper .dataTables_scrollBody {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+#tabelaResultados_wrapper .dataTables_paginate {
+    text-align: right !important;
+}
+
+#tabelaResultados_wrapper .dataTables_info {
+    text-align: left !important;
+}
+
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1600px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-search me-2"></i>
+            Pesquisar CCOs para Recálculo
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('recalculo_ui.index_recalculo') }}">Recálculo</a></li>
+                <li class="breadcrumb-item active">Pesquisar CCOs</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Formulário de Filtros -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-filter me-2"></i>
+                Filtros de Pesquisa
+            </h5>
+        </div>
+        <div class="card-body">
+            <form id="formPesquisaCcos">
+                <div class="row">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                         <label class="form-label">Contrato CPP <span class="text-muted">(obrigatório sem ID)</span></label>
+                        <select class="form-select" id="contratoCpp" name="contratoCpp" onchange="carregarCamposAnalise()">
+                            <option value="">Selecione...</option>
+                        </select>
+                        <div class="form-text">Obrigatório apenas quando a pesquisa não for por ID da CCO</div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <label class="form-label">Campo</label>
+                        <select class="form-select" id="campo" name="campo">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-lg-2 col-md-4 mb-3">
+                        <label for="remessa" class="form-label">Remessa</label>
+                        <input type="number" class="form-control" id="remessa" name="remessa" placeholder="Ex: 123">
+                    </div>
+                    
+                    <div class="col-lg-2 col-md-4 mb-3">
+                        <label for="faseRemessa" class="form-label">Fase</label>
+                        <select class="form-select" id="faseRemessa" name="faseRemessa">
+                            <option value="">Todas as Fases</option>
+                            <option value="MEN">MEN</option>
+                            <option value="ROP">ROP</option>
+                            <option value="RAD">RAD</option>
+                            <option value="REC">REC</option>
+                            <option value="REV">REV</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Origem dos Gastos</label>
+                        <select class="form-select" id="origemDosGastos" name="origemDosGastos">
+                            <option value="">Todas</option>
+                            <option value="GASTO_EXCLUSIVO">Gasto Exclusivo</option>
+                            <option value="GASTO_JAZIDA_COMPARTILHADA">Gasto Jazida Compartilhada</option>
+                            <option value="GASTO_ATIVO_COMPARTILHADO">Gasto Ativo Compartilhado</option>
+                            <option value="GASTO_AEGV">Gasto AEGV</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-lg-2 col-md-4 mb-3">
+                        <label for="exercicio" class="form-label">Exercício</label>
+                        <input type="number" class="form-control" id="exercicio" name="exercicio" min="2010" max="2050" placeholder="Ex: 2024">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-lg-2 col-md-4 mb-3">
+                        <label for="periodo" class="form-label">Período</label>
+                        <input type="number" class="form-control" id="periodo" name="periodo" min="1" max="12" placeholder="Ex: 12">
+                    </div>
+                    
+                    <div class="col-lg-4 col-md-8 mb-3">
+                        <label for="ccoId" class="form-label">ID da CCO (Pesquisa Direta)</label>
+                        <input type="text" class="form-control" id="ccoId" name="id" placeholder="Ex: DMGgBNfeQwGhbb_YFlVC4AAAAAA">
+                        <div class="form-text">Se informado, os outros filtros serão ignorados</div>
+                    </div>
+                    
+                    <div class="col-lg-6 col-md-12 mb-3 d-flex align-items-end">
+                        <div class="btn-group w-100" role="group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1"></i>Pesquisar
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="btnLimparFiltros">
+                                <i class="fas fa-eraser me-1"></i>Limpar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingPesquisa" class="text-center py-4" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <p class="mt-2">Pesquisando CCOs...</p>
+    </div>
+
+    <!-- Resultados -->
+    <div id="containerResultados" style="display: none;">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Resultados da Pesquisa
+                    <span id="totalResultados" class="badge bg-primary ms-2">0</span>
+                </h5>
+            </div>
+            <div class="card-body p-0 resultados-card-body">
+                <div class="table-responsive tabela-resultados-scroll" aria-label="Tabela de resultados com rolagem horizontal">
+                    <table class="table table-hover mb-0 tabela-resultados-recalculo" id="tabelaResultados">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID da CCO</th>
+                                <th>Contrato</th>
+                                <th>Campo</th>
+                                <th>Remessa</th>
+                                <th>Remessa Exposição</th>
+                                <th>Fase</th>
+                                <th>Exercício</th>
+                                <th>Período</th>
+                                <th>Valor Reconhecido</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="corpoTabelaResultados">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensagem de nenhum resultado -->
+    <div id="nenhumResultado" class="alert alert-info text-center" style="display: none;">
+        <i class="fas fa-info-circle me-2"></i>
+        Nenhuma CCO encontrada com os filtros aplicados.
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+document.addEventListener('DOMContentLoaded', function() {
+
+    // Carregar dados iniciais
+    carregarContratosAnalise();
+    carregarContratosPesquisa();
+    //carregarEtapas();
+
+    const formPesquisa = document.getElementById('formPesquisaCcos');
+    const loadingPesquisa = document.getElementById('loadingPesquisa');
+    const containerResultados = document.getElementById('containerResultados');
+    const nenhumResultado = document.getElementById('nenhumResultado');
+    const totalResultados = document.getElementById('totalResultados');
+    const corpoTabela = document.getElementById('corpoTabelaResultados');
+    const btnLimparFiltros = document.getElementById('btnLimparFiltros');
+    let tabelaResultadosDataTable = null;
+
+    // Submissão do formulário
+    formPesquisa.addEventListener('submit', function(e) {
+        e.preventDefault();
+        executarPesquisa();
+    });
+
+    // Botão limpar filtros
+    btnLimparFiltros.addEventListener('click', function() {
+        formPesquisa.reset();
+        destruirTabelaResultados();
+        corpoTabela.innerHTML = '';
+        totalResultados.textContent = '0';
+        containerResultados.style.display = 'none';
+        nenhumResultado.style.display = 'none';
+    });
+
+    function executarPesquisa() {
+        // Coletar dados do formulário
+        const formData = new FormData(formPesquisa);
+        const dados = {};
+        for (let [key, value] of formData.entries()) {
+            if (value.trim()) {
+                dados[key] = value.trim();
+            }
+        }
+
+        const ccoIdInformado = Boolean(dados.id);
+        const contratoInformado = Boolean(dados.contratoCpp);
+
+        // Regra:
+        // - Se pesquisar por ID da CCO, Contrato CPP não é obrigatório.
+        // - Se NÃO pesquisar por ID, Contrato CPP continua obrigatório.
+        if (!ccoIdInformado && !contratoInformado) {
+            mostrarErro('Contrato CPP é obrigatório para pesquisa por filtros. Para pesquisar sem contrato, informe o ID da CCO.');
+            return;
+        }
+
+        // Se ID da CCO foi informado, os demais filtros são ignorados.
+        // Enviamos somente o ID para evitar conflito com outros campos preenchidos.
+        const dadosPesquisa = ccoIdInformado ? { id: dados.id } : dados;
+
+        // Mostrar loading
+        loadingPesquisa.style.display = 'block';
+        containerResultados.style.display = 'none';
+        nenhumResultado.style.display = 'none';
+
+        // Fazer requisição
+        fetch(`${window.API_PREFIX}/recalculo/api/pesquisar-ccos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(dadosPesquisa)
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingPesquisa.style.display = 'none';
+
+            if (data.success) {
+                exibirResultados(data.resultados);
+            } else {
+                mostrarErro('Erro na pesquisa: ' + data.error);
+            }
+        })
+        .catch(error => {
+            loadingPesquisa.style.display = 'none';
+            mostrarErro('Erro na requisição: ' + error.message);
+        });
+    }
+
+    function exibirResultados(resultados) {
+        destruirTabelaResultados();
+
+        if (resultados.length === 0) {
+            corpoTabela.innerHTML = '';
+            totalResultados.textContent = '0';
+            containerResultados.style.display = 'none';
+            nenhumResultado.style.display = 'block';
+            return;
+        }
+
+        totalResultados.textContent = resultados.length;
+        corpoTabela.innerHTML = '';
+
+        resultados.forEach(cco => {
+            const linha = document.createElement('tr');
+            const remessa = cco.remessa ?? '';
+            const remessaExposicao = cco.remessaExposicao ?? '';
+
+            linha.innerHTML = `
+                <td><code class="small">${cco.id ?? ''}</code></td>
+                <td>${cco.contratoCpp ?? ''}</td>
+                <td>${cco.campo ?? ''}</td>
+                <td>${remessa}</td>
+                <td>${remessaExposicao}</td>
+                <td><span class="badge bg-secondary">${cco.faseRemessa ?? ''}</span></td>
+                <td>${cco.exercicio ?? ''}</td>
+                <td>${cco.periodo ?? ''}</td>
+                <td class="text-end">R$ ${formatarMoeda(cco.valorReconhecidoComOH)}</td>
+                <td>${cco.flgRecuperado ? '<span class="badge bg-success">Recuperado</span>' : '<span class="badge bg-warning">Não Recuperado</span>'}</td>
+                <td>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-primary btn-recalcular" data-cco-id="${cco.id}" title="Recalcular CCO">
+                            <i class="fas fa-calculator"></i>
+                        </button>
+                        <button class="btn btn-outline-info btn-timeline" data-cco-id="${cco.id}" title="Ver Timeline">
+                            <i class="fas fa-history"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            corpoTabela.appendChild(linha);
+        });
+
+        // Adicionar event listeners para os botões
+        document.querySelectorAll('.btn-recalcular').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const ccoId = this.getAttribute('data-cco-id');
+                window.location.href = `${window.API_PREFIX}/recalculo/executar/${ccoId}`;
+            });
+        });
+
+        document.querySelectorAll('.btn-timeline').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const ccoId = this.getAttribute('data-cco-id');
+                window.open(`${window.API_PREFIX}/cco-timeline/${ccoId}`, '_blank');
+            });
+        });
+
+        containerResultados.style.display = 'block';
+        inicializarTabelaResultados();
+    }
+
+    function destruirTabelaResultados() {
+        if ($.fn.DataTable.isDataTable('#tabelaResultados')) {
+            $('#tabelaResultados').DataTable().clear().destroy();
+        }
+        tabelaResultadosDataTable = null;
+    }
+
+    function inicializarTabelaResultados() {
+        tabelaResultadosDataTable = $('#tabelaResultados').DataTable({
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+            },
+            pageLength: 10,
+            lengthMenu: [
+                [10, 25, 50, 100, -1],
+                [10, 25, 50, 100, 'Todos']
+            ],
+            scrollX: true,
+            autoWidth: false,
+            order: [[3, 'desc']],
+            columnDefs: [
+                { targets: [10], orderable: false },
+                { targets: [8], className: 'text-end' }
+            ]
+        });
+
+        setTimeout(function() {
+            tabelaResultadosDataTable.columns.adjust();
+        }, 0);
+    }
+
+    function formatarMoeda(valor) {
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(valor);
+    }
+
+    function mostrarErro(mensagem) {
+        alert(mensagem); // TODO: Implementar toast/modal mais elegante
+    }
+});
+
+function carregarContratosAnalise() {
+    fetch(`${window.API_PREFIX}/api/contratos-disponiveis`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('carregarContratosAnalise --> ' + data);
+            if (data) {
+                const select = document.getElementById('contratoCpp');
+                select.innerHTML = '<option value="">Selecione...</option>';
+                data.contratos.forEach(contrato => {
+                    console.log('carregarContratosAnalise contrato --> ' + contrato);
+                    select.innerHTML += `<option value="${contrato}">${contrato}</option>`;
+                });
+            }else{
+                console.log('carregarContratosAnalise data error --> ' + data.error);
+            }
+        })
+        .catch(error => console.error('Erro ao carregar contratos:', error));
+}
+
+
+function carregarContratosPesquisa() {
+    fetch(`${window.API_PREFIX}/api/contratos-disponiveis`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('carregarContratosPesquisa --> ' + data);
+            if (data) {
+                const select = document.getElementById('selectContratoPesquisa');
+                select.innerHTML = '<option value="">Selecione...</option>';
+                data.contratos.forEach(contrato => {
+                    console.log('carregarContratosPesquisa contrato --> ' + contrato);
+                    select.innerHTML += `<option value="${contrato}">${contrato}</option>`;
+                });
+            }
+        })
+        .catch(error => console.error('Erro ao carregar contratos:', error));
+}
+
+function carregarCamposAnalise() {
+    const contrato = document.getElementById('contratoCpp').value;
+    const selectCampo = document.getElementById('campo');
+    
+    if (!contrato) {
+        selectCampo.innerHTML = '<option value="">Todos</option>';
+        return;
+    }
+    
+    fetch(`${window.API_PREFIX}/api/campos-remessa/${contrato}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                selectCampo.innerHTML = '<option value="">Todos</option>';
+                data.campos.forEach(campo => {
+                    selectCampo.innerHTML += `<option value="${campo}">${campo}</option>`;
+                });
+            }
+        })
+        .catch(error => console.error('Erro ao carregar campos:', error));
+}
+
+function carregarCamposPesquisa() {
+    const contrato = document.getElementById('selectContratoPesquisa').value;
+    const selectCampo = document.getElementById('selectCampoPesquisa');
+    
+    if (!contrato) {
+        selectCampo.innerHTML = '<option value="">Todos</option>';
+        return;
+    }
+    
+    fetch(`${window.API_PREFIX}/api/campos-remessa/${contrato}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                selectCampo.innerHTML = '<option value="">Todos</option>';
+                data.campos.forEach(campo => {
+                    selectCampo.innerHTML += `<option value="${campo}">${campo}</option>`;
+                });
+            }
+        })
+        .catch(error => console.error('Erro ao carregar campos:', error));
+}
+
+function carregarEtapas() {
+    fetch(`${window.API_PREFIX}/api/etapas-remessas`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const selects = ['selectEtapaAnalise', 'selectEtapaPesquisa'];
+                selects.forEach(selectId => {
+                    const select = document.getElementById(selectId);
+                    select.innerHTML = '<option value="">Todas</option>';
+                    data.etapas.forEach(etapa => {
+                        select.innerHTML += `<option value="${etapa}">${etapa}</option>`;
+                    });
+                });
+            }
+        })
+        .catch(error => console.error('Erro ao carregar etapas:', error));
+}
+</script>
+{% endblock %}

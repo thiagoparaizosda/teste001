@@ -1,0 +1,2506 @@
+<!-- templates/cco_editor/editar.html -->
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% set campos_data_cco = [
+    'dataLancamento',
+    'dataReconhecimento',
+    'dataCriacao',
+    'dataAtualizacao',
+    'dataCriacaoCorrecao',
+    'dataCorrecao',
+    'createdAt',
+    'updatedAt'
+] %}
+
+{% set campos_somente_leitura_correcao = [
+    'tipo',
+    'subTipo',
+    'idContaCustoOleoCorrigida',
+    'contrato',
+    'campo',
+    'faseRemessa'
+] %}
+
+{% set campos_ocultos_correcao = [
+    'dataCriacaoCorrecao'
+] %}
+
+
+{% block extra_css %}
+<style>
+    .campo-editavel { transition: all 0.2s; }
+    .campo-editavel:hover { background-color: #f8f9fa; }
+    .campo-bloqueado { background-color: #e9ecef; opacity: 0.7; }
+    .campo-alterado { background-color: #fff3cd !important; border-left: 3px solid #ffc107; }
+    .campo-consistente { background-color: #d1ecf1 !important; border-left: 3px solid #17a2b8; }
+    .campo-inconsistente { background-color: #f8d7da !important; border-left: 3px solid #dc3545; }
+    .valor-monetario { font-family: 'Consolas', monospace; text-align: right; }
+    .correcao-card { border-left: 4px solid #007bff; margin-bottom: 15px; }
+    .correcao-card.ipca { border-left-color: #28a745; }
+    .correcao-card.igpm { border-left-color: #17a2b8; }
+    .correcao-card.recuperacao { border-left-color: #dc3545; }
+    .correcao-card.retificacao { border-left-color: #ffc107; }
+    .nova-retificacao { border: 2px dashed #28a745; background-color: #f8fff8; }
+    .sticky-actions { position: sticky; top: 20px; }
+    .badge-inconsistencias { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .icon-consistente { color: #17a2b8; font-size: 0.75rem; margin-left: 4px; }
+    .icon-calculado { color: #6c757d; font-size: 0.75rem; margin-left: 4px; }
+    .icon-inconsistente { color: #dc3545; font-size: 0.75rem; margin-left: 4px; }
+    .inconsistencia-item { padding: 10px; border-left: 3px solid #dc3545; background: #fff5f5; margin-bottom: 8px; border-radius: 0 6px 6px 0; font-size: 0.85rem; }
+    .inconsistencia-item .campo-nome { font-weight: 600; color: #dc3545; }
+    .inconsistencia-item .valor-esperado { color: #28a745; }
+    .inconsistencia-item .valor-atual { color: #dc3545; }
+    .campo-com-regra { cursor: help; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1600px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3"><i class="fas fa-edit me-2"></i>Editar CCO</h1>
+            <p class="text-muted mb-0">
+                <code>{{ cco._id }}</code>
+                <a href="{{ request.script_root }}/cco-timeline/{{ cco._id }}" target="_blank" class="ms-2 btn btn-sm btn-outline-info">
+                    <i class="fas fa-stream me-1"></i>Timeline <i class="fas fa-external-link-alt ms-1" style="font-size: 0.65rem;"></i>
+                </a>
+            </p>
+        </div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('cco_editor.index') }}">Edição CCO</a></li>
+                <li class="breadcrumb-item active">Editar</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="row align-items-center small">
+                <div class="col-auto"><strong>Contrato:</strong> {{ cco.contratoCpp }}</div>
+                <div class="col-auto"><strong>Campo:</strong> {{ cco.campo }}</div>
+                <div class="col-auto"><strong>Remessa:</strong> {{ cco.remessa }}</div>
+                <div class="col-auto"><strong>Fase:</strong> {{ cco.faseRemessa }}</div>
+                <div class="col-auto"><strong>Versão:</strong> {{ cco.version or 1 }}</div>
+                <div class="col-auto"><span class="badge bg-{{ 'danger' if cco.flgRecuperado else 'success' }}">{{ 'Recuperada' if cco.flgRecuperado else 'Ativa' }}</span></div>
+            </div>
+        </div>
+    </div>
+
+    {% if tem_rascunho_pendente %}
+    <div class="alert alert-warning d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <i class="fas fa-file-signature me-2"></i>
+            Você está editando um <strong>rascunho pendente</strong> (ainda não promovido para produção). Os valores
+            exibidos incluem alterações salvas anteriormente, inclusive uma eventual correção nova já adicionada.
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalConfirmarDescartarRascunho">
+            <i class="fas fa-trash-alt me-1"></i>Descartar Rascunho
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-9">
+            <ul class="nav nav-tabs mb-3" id="editorTabs">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRaiz"><i class="fas fa-file-alt me-2"></i>Campos Raiz <span class="badge bg-secondary ms-1" id="countAlteracoesRaiz">0</span></button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCorrecoes"><i class="fas fa-history me-2"></i>Correções ({{ correcoes|length }})</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNovaCorrecao"><i class="fas fa-plus-circle me-2"></i>Nova Correção</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabInconsistencias" id="tabInconsistenciasBtn"><i class="fas fa-exclamation-triangle me-2"></i>Validação <span class="badge badge-inconsistencias ms-1" id="countInconsistencias" style="display: none;">0</span></button></li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Tab Campos Raiz -->
+                <div class="tab-pane fade show active" id="tabRaiz">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-edit me-2"></i>Campos da Raiz</h6>
+                            <small class="text-muted"><i class="fas fa-check-circle icon-consistente"></i> Consistente <i class="fas fa-exclamation-circle icon-inconsistente ms-3"></i> Inconsistente</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="camposRaiz">
+                                {% for campo in campos_raiz %}
+                                <div class="col-md-6 mb-3 campo-editavel" data-campo="{{ campo.nome }}" data-valor-original="{{ campo.valor }}">
+                                    <label class="form-label small">{{ campo.label }}{% if campo.nome in campos_bloqueados_raiz %}<i class="fas fa-lock text-muted ms-1"></i>{% endif %}<span id="status_{{ campo.nome }}"></span></label>
+                                    {% if campo.nome in campos_bloqueados_raiz %}
+                                    <input type="text" class="form-control form-control-sm campo-bloqueado{% if campo.nome in campos_data_cco %} campo-data{% endif %}" value="{{ campo.valor }}" data-valor-raw="{{ campo.valor or '' }}" disabled>
+                                    {% elif campo.is_booleano %}
+                                    <select class="form-select form-select-sm" id="campo_{{ campo.nome }}" onchange="onCampoChange('{{ campo.nome }}', this.value, 'raiz')">
+                                        <option value="true" {% if campo.valor %}selected{% endif %}>Sim</option>
+                                        <option value="false" {% if not campo.valor %}selected{% endif %}>Não</option>
+                                    </select>
+                                    {% elif campo.is_monetario %}
+                                    <input type="text" class="form-control form-control-sm valor-monetario valor-tooltip" id="campo_{{ campo.nome }}" value="{{ campo.valor|default(0) }}" data-valor-raw="{{ campo.valor or 0 }}" title="" onchange="onCampoChange('{{ campo.nome }}', this.value, 'raiz')" onpaste="onPasteValor(event, this)" onclick="this.select()">
+                                    {% elif campo.nome in campos_data_cco %}
+                                    <input type="text" class="form-control form-control-sm campo-data" id="campo_{{ campo.nome }}" value="{{ campo.valor or '' }}" data-valor-raw="{{ campo.valor or '' }}" onchange="onCampoDataChange('{{ campo.nome }}', this, 'raiz')" onfocus="this.select()" onblur="formatarCampoDataInput(this)">
+                                    {% elif campo.is_inteiro %}
+                                    <input type="number"
+                                           step="1"
+                                           min="0"
+                                           inputmode="numeric"
+                                           class="form-control form-control-sm campo-inteiro"
+                                           id="campo_{{ campo.nome }}"
+                                           value="{{ campo.valor or 0 }}"
+                                           onchange="onCampoChange('{{ campo.nome }}', this.value, 'raiz')">
+                                    {% else %}
+                                    <input type="text" class="form-control form-control-sm" id="campo_{{ campo.nome }}" value="{{ campo.valor or '' }}" onchange="onCampoChange('{{ campo.nome }}', this.value, 'raiz')">
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Correções Monetárias -->
+                <div class="tab-pane fade" id="tabCorrecoes">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-history me-2"></i>Correções Monetárias</h6>
+                            <small class="text-muted">Ordenadas por data</small>
+                        </div>
+                        <div class="card-body">
+                            {% if correcoes %}
+                            {% for correcao in correcoes|sort(attribute='dataCorrecao') %}
+                            <div class="card correcao-card {{ correcao.tipo|lower }}" id="correcao_{{ correcao.indice }}" data-indice="{{ correcao.indice }}" data-tipo="{{ correcao.tipo }}" data-data-correcao="{{ correcao.dataCorrecao }}" data-data-correcao-original="{{ correcao.dataCorrecao }}">
+                                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-{{ 'success' if correcao.tipo == 'IPCA' else ('info' if correcao.tipo == 'IGPM' else ('danger' if correcao.tipo == 'RECUPERACAO' else 'warning')) }}">{{ correcao.tipo }}</span>
+                                        <span class="badge bg-secondary">{{ correcao.subTipo }}</span>
+                                        {% set data_cabecalho_correcao = correcao.dataCorrecao %}
+                                        <small class="text-muted ms-2 data-formatada-br"
+                                               id="data_cabecalho_correcao_{{ correcao.indice }}"
+                                               data-correcao-indice="{{ correcao.indice }}"
+                                               data-data-raw="{{ data_cabecalho_correcao }}">{{ data_cabecalho_correcao }}</small>
+                                        <span id="status_correcao_{{ correcao.indice }}"></span>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#correcao_body_{{ correcao.indice }}"><i class="fas fa-chevron-down"></i></button>
+                                </div>
+                                <div class="collapse" id="correcao_body_{{ correcao.indice }}">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            {% for campo in correcao.campos %}
+                                            {% if campo.nome in campos_ocultos_correcao %}
+                                            {# Campo de uso interno: não deve ser exibido nem editado. #}
+                                            {% elif campo.nome in campos_somente_leitura_correcao %}
+                                            <div class="col-md-4 mb-2">
+                                                <label class="form-label small">
+                                                    {{ campo.label }}
+                                                    <i class="fas fa-lock text-muted ms-1" title="Campo disponível para preenchimento apenas no cadastro de novas correções"></i>
+                                                </label>
+                                                <input type="text"
+                                                       class="form-control form-control-sm campo-bloqueado"
+                                                       id="correcao_{{ correcao.indice }}_{{ campo.nome }}"
+                                                       value="{{ campo.valor or '' }}"
+                                                       disabled
+                                                       readonly
+                                                       title="Este campo não pode ser alterado em uma correção já cadastrada.">
+                                            </div>
+                                            {% elif campo.nome not in campos_bloqueados_correcao %}
+                                            <div class="col-md-4 mb-2">
+                                                <label class="form-label small">{{ campo.label }} <span id="status_correcao_{{ correcao.indice }}_{{ campo.nome }}"></span></label>
+                                                {% if campo.is_booleano %}
+                                                <select class="form-select form-select-sm" id="correcao_{{ correcao.indice }}_{{ campo.nome }}" onchange="onCampoChange('{{ campo.nome }}', this.value, 'correcao', {{ correcao.indice }})">
+                                                    <option value="true" {% if campo.valor %}selected{% endif %}>Sim</option>
+                                                    <option value="false" {% if not campo.valor %}selected{% endif %}>Não</option>
+                                                </select>
+                                                {% elif campo.is_monetario %}
+                                                <input type="text" class="form-control form-control-sm valor-monetario valor-tooltip" id="correcao_{{ correcao.indice }}_{{ campo.nome }}" value="{{ campo.valor|default(0) }}" data-valor-raw="{{ campo.valor or 0 }}" onchange="onCampoChange('{{ campo.nome }}', this.value, 'correcao', {{ correcao.indice }})" onpaste="onPasteValor(event, this)" onclick="this.select()">
+                                                {% elif campo.nome in campos_data_cco %}
+                                                <input type="text" class="form-control form-control-sm campo-data" id="correcao_{{ correcao.indice }}_{{ campo.nome }}" value="{{ campo.valor or '' }}" data-valor-raw="{{ campo.valor or '' }}" onchange="onCampoDataChange('{{ campo.nome }}', this, 'correcao', {{ correcao.indice }})" onfocus="this.select()" onblur="formatarCampoDataInput(this)">
+                                                {% elif campo.nome == 'quantidadeLancamento' %}
+                                                <input type="number"
+                                                       step="1"
+                                                       min="0"
+                                                       inputmode="numeric"
+                                                       class="form-control form-control-sm campo-inteiro"
+                                                       id="correcao_{{ correcao.indice }}_{{ campo.nome }}"
+                                                       value="{{ campo.valor or 0 }}"
+                                                       onchange="onCampoChange('{{ campo.nome }}', this.value, 'correcao', {{ correcao.indice }})">
+                                                {% else %}
+                                                <input type="text" class="form-control form-control-sm" id="correcao_{{ correcao.indice }}_{{ campo.nome }}" value="{{ campo.valor or '' }}" onchange="onCampoChange('{{ campo.nome }}', this.value, 'correcao', {{ correcao.indice }})">
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        <div class="row mt-3 pt-3 border-top">
+                                            <div class="col-12"><small class="text-muted"><i class="fas fa-calculator me-1"></i>Acumulados</small></div>
+                                            {% if correcao.tipo in ['IPCA', 'IGPM'] %}
+                                            <div class="col-md-4 mt-2"><label class="form-label small text-muted">Acumulado (%)</label><input type="text" class="form-control form-control-sm bg-light" id="calc_{{ correcao.indice }}_igpmAcumulado" readonly></div>
+                                            <div class="col-md-4 mt-2">
+                                                <label class="form-label small text-muted">Acumulado (R$)</label>
+                                                <input type="text" class="form-control form-control-sm bg-light" id="calc_{{ correcao.indice }}_igpmAcumuladoReais" readonly>
+                                            </div>
+                                            {% elif correcao.tipo == 'RECUPERACAO' %}
+                                            <div class="col-md-4 mt-2"><label class="form-label small text-muted">Recuperado Total</label><input type="text" class="form-control form-control-sm bg-light" id="calc_{{ correcao.indice }}_valorRecuperadoTotal" readonly></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="text-center py-4 text-muted"><i class="fas fa-inbox fa-3x mb-3"></i><p>Sem correções</p></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Nova Correção Monetária -->
+                <div class="tab-pane fade" id="tabNovaCorrecao">
+                    <div class="card nova-retificacao">
+                        <div class="card-header bg-success text-white"><h6 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Nova Correção Monetária</h6></div>
+                        <div class="card-body">
+                            <div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Valores pré-preenchidos com base na última correção ou raiz. Todos os campos são editáveis.</div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="incluirNovaCorrecao">
+                                <label class="form-check-label" for="incluirNovaCorrecao"><strong>Incluir nova correção monetária</strong></label>
+                            </div>
+                            <div id="camposNovaCorrecao" style="display: none;">
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="nc_tipo" onchange="onTipoCorrecaoChange()">
+                                            <option value="RETIFICACAO">RETIFICAÇÃO</option>
+                                            <option value="RECUPERACAO">RECUPERAÇÃO</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Sub-Tipo</label>
+                                        <input type="text" class="form-control" id="nc_subTipo" value="DEFAULT">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Observação</label>
+                                        <input type="text" class="form-control" id="nc_observacao" placeholder="Descrição da correção">
+                                    </div>
+                                </div>
+                                <hr><h6>Valores Principais</h6>
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Rec. Exploração</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecidoExploracao" value="{{ valores_base_retificacao.valorReconhecidoExploracao or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Rec. Produção</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecidoProducao" value="{{ valores_base_retificacao.valorReconhecidoProducao or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Reconhecido <i class="fas fa-calculator icon-calculado" title="Soma Exp+Prod"></i></label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecido" value="{{ valores_base_retificacao.valorReconhecido or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Rec. c/ OH <i class="fas fa-calculator icon-calculado" title="VR + OH"></i></label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecidoComOH" value="{{ valores_base_retificacao.valorReconhecidoComOH or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">OH Exploração</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_overHeadExploracao" value="{{ valores_base_retificacao.overHeadExploracao or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">OH Produção</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_overHeadProducao" value="{{ valores_base_retificacao.overHeadProducao or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">OH Total <i class="fas fa-calculator icon-calculado" title="Soma OH"></i></label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_overHeadTotal" value="{{ valores_base_retificacao.overHeadTotal or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Original <i class="fas fa-calculator icon-calculado"></i></label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecidoComOhOriginal" value="{{ valores_base_retificacao.valorReconhecidoComOhOriginal or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                </div>
+                                <hr><h6>Valores Adicionais</h6>
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Diferença Valor <i class="fas fa-calculator icon-calculado"></i></label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_diferencaValor" value="{{ valores_base_retificacao.diferencaValor or 0 }}" onchange="normalizarInputDiferencaValor(this); marcarCampoEditadoNovaCorrecao('diferencaValor'); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3" id="grpValorRecuperado">
+                                        <label class="form-label">Valor Recuperado</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorRecuperado" value="{{ valores_base_retificacao.valorRecuperado or 0 }}" onchange="calcularNovaCorrecao()" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3" id="grpValorRecuperadoTotal">
+                                        <label class="form-label">Valor Recuperado Total</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorRecuperadoTotal" value="{{ valores_base_retificacao.valorRecuperadoTotal or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('valorRecuperadoTotal'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Não Reconhecido</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorNaoReconhecido" value="{{ valores_base_retificacao.valorNaoReconhecido or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('valorNaoReconhecido'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Qtd Lançamento</label>
+                                        <input type="number"
+                                               step="1"
+                                               min="0"
+                                               inputmode="numeric"
+                                               class="form-control campo-inteiro"
+                                               id="nc_quantidadeLancamento"
+                                               value="{{ valores_base_retificacao.quantidadeLancamento or 0 }}"
+                                               onchange="marcarCampoEditadoNovaCorrecao('quantidadeLancamento'); validarTudo();">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Lançamento Total</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorLancamentoTotal" value="{{ valores_base_retificacao.valorLancamentoTotal or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('valorLancamentoTotal'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Reconhecível</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorReconhecivel" value="{{ valores_base_retificacao.valorReconhecivel or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('valorReconhecivel'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Valor Não Passível Recup.</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_valorNaoPassivelRecuperacao" value="{{ valores_base_retificacao.valorNaoPassivelRecuperacao or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('valorNaoPassivelRecuperacao'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">IGPM Acumulado (%)</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_igpmAcumulado" value="{{ valores_base_retificacao.igpmAcumulado or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('igpmAcumulado'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">IGPM Acumulado (R$)</label>
+                                        <input type="text" class="form-control valor-monetario" id="nc_igpmAcumuladoReais" value="{{ valores_base_retificacao.igpmAcumuladoReais or 0 }}" onchange="marcarCampoEditadoNovaCorrecao('igpmAcumuladoReais'); resincronizarValorRawNovaCorrecao(); validarTudo();" onpaste="onPasteValor(event, this)">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Ativo</label>
+                                        <select class="form-select" id="nc_ativo">
+                                            <option value="true" selected>Sim</option>
+                                            <option value="false">Não</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label class="form-label">Transferência</label>
+                                        <select class="form-select" id="nc_transferencia">
+                                            <option value="false" selected>Não</option>
+                                            <option value="true">Sim</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Validação -->
+                <div class="tab-pane fade" id="tabInconsistencias">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Validação</h6>
+                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#modalAjudaRegras"><i class="fas fa-question-circle me-1"></i>Ajuda</button>
+                        </div>
+                        <div class="card-body"><div id="listaInconsistencias"><div class="text-center py-4 text-success"><i class="fas fa-check-circle fa-3x mb-3"></i><p class="mb-0">Nenhuma inconsistência</p></div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Ações -->
+        <div class="col-lg-3">
+            <div class="sticky-actions">
+                <div class="card">
+                    <div class="card-header"><h6 class="mb-0"><i class="fas fa-tools me-2"></i>Ações</h6></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Observações</label>
+                            <textarea class="form-control" id="observacoesGerais" rows="3" placeholder="Motivo das alterações"></textarea>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="salvarEdicao()" id="btnSalvar">
+                                <i class="fas fa-save me-2"></i>Salvar
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalConfirmarResetar">
+                                <i class="fas fa-undo me-2"></i>Resetar
+                            </button>
+                            {% if tem_rascunho_pendente %}
+                            <button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#modalConfirmarDescartarRascunho">
+                                <i class="fas fa-trash-alt me-2"></i>Descartar Rascunho
+                            </button>
+                            {% endif %}
+                            <a href="{{ url_for('cco_editor.index') }}" class="btn btn-outline-danger">
+                                <i class="fas fa-times me-2"></i>Cancelar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mt-3">
+                    <div class="card-header"><h6 class="mb-0"><i class="fas fa-list-check me-2"></i>Resumo</h6></div>
+                    <div class="card-body"><div id="resumoAlteracoes"><p class="text-muted small">Nenhuma alteração</p></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Ajuda Regras -->
+<div class="modal fade" id="modalAjudaRegras" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white"><h5 class="modal-title"><i class="fas fa-book me-2"></i>Regras de Validação</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <p class="small text-muted">
+                    A validação roda automaticamente ao abrir a tela e a cada alteração de campo — ela nunca sobrescreve
+                    valores. Cada campo coberto por uma regra é pintado de <strong class="text-info">azul</strong> quando o
+                    valor bate com o esperado, ou de <strong class="text-danger">vermelho</strong> quando diverge. Passe o
+                    mouse sobre o campo (ou sobre o ícone ao lado do rótulo) para ver a fórmula aplicada, o valor atual e o
+                    valor esperado em um balão. As correções monetárias são avaliadas em cadeia, na ordem cronológica de
+                    <code>dataCorrecao</code>: cada uma usa como base o resultado da correção imediatamente anterior (ou o
+                    da raiz, para a primeira correção).
+                </p>
+
+                <hr><h6><i class="fas fa-file-alt me-2"></i>Campos da Raiz</h6>
+                <ul class="small">
+                    <li><strong>valorLancamentoTotal</strong> = valorReconhecido + valorNaoReconhecido</li>
+                    <li><strong>valorReconhecivel</strong> = valorLancamentoTotal</li>
+                    <li><strong>valorReconhecido</strong> = valorReconhecidoExploracao + valorReconhecidoProducao</li>
+                    <li><strong>overHeadProducao</strong> = valorReconhecidoProducao × 0,01</li>
+                    <li><strong>overHeadTotal</strong> = overHeadExploracao + overHeadProducao</li>
+                    <li><strong>valorReconhecidoComOH</strong> = valorReconhecido + overHeadTotal</li>
+                </ul>
+
+                <hr><h6><i class="fas fa-equals me-2"></i>Correções — campos que devem repetir a raiz</h6>
+                <p class="small text-muted mb-1">Válido para correções de qualquer tipo (comparados com o valor atual da raiz):</p>
+                <ul class="small">
+                    <li>contrato, campo, faseRemessa, quantidadeLancamento</li>
+                    <li>valorReconhecido, valorReconhecidoProducao, valorReconhecidoExploracao</li>
+                    <li>overHeadProducao, overHeadExploracao, overHeadTotal</li>
+                </ul>
+
+                <hr><h6><i class="fas fa-link me-2"></i>Correções — encadeamento (todos os tipos)</h6>
+                <ul class="small">
+                    <li><strong>valorReconhecidoComOhOriginal</strong> = valorReconhecidoComOH da correção anterior (ou da raiz, se for a primeira correção)</li>
+                </ul>
+
+                <hr><h6><i class="fas fa-percentage me-2"></i>Correções do tipo IPCA / IGPM</h6>
+                <ul class="small">
+                    <li><strong>valorReconhecidoComOH</strong> = valorReconhecidoComOhOriginal × taxaCorrecao</li>
+                    <li><strong>diferencaValor</strong> = valorReconhecidoComOH - valorReconhecidoComOhOriginal</li>
+                    <li><strong>valorLancamentoTotal</strong> = valorLancamentoTotal da correção anterior (ou da raiz) × taxaCorrecao</li>
+                    <li><strong>valorReconhecivel</strong> = valorLancamentoTotal (da própria correção)</li>
+                    <li><strong>igpmAcumulado</strong> = soma das taxaCorrecao de todas as correções IPCA/IGPM até esta (inclusive)</li>
+                    <li><strong>igpmAcumuladoReais</strong> = soma das diferencaValor de todas as correções IPCA/IGPM até esta (inclusive)</li>
+                </ul>
+
+                <hr><h6><i class="fas fa-undo me-2"></i>Correções do tipo RECUPERAÇÃO</h6>
+                <ul class="small">
+                    <li><strong>valorReconhecidoComOH</strong> = valorReconhecidoComOhOriginal - valorRecuperado</li>
+                    <li><strong>diferencaValor</strong> = valorRecuperado</li>
+                    <li><strong>valorLancamentoTotal</strong> = valorLancamentoTotal da raiz (não encadeia com a correção anterior — desfaz a indexação nominal bruta)</li>
+                    <li><strong>valorRecuperadoTotal</strong> = soma das valorRecuperado de todas as correções RECUPERACAO até esta (inclusive)</li>
+                </ul>
+
+                <hr><h6><i class="fas fa-keyboard me-2"></i>Máscaras</h6>
+                <ul class="small">
+                    <li>Valores aceitam formato BR (1.234,56) ou US (1234.56)</li>
+                    <li>Ao colar "R$ 157.162.212,10" → converte automaticamente</li>
+                </ul>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Inconsistências ao Salvar -->
+<div class="modal fade" id="modalInconsistenciasSalvar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white"><h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Inconsistências Detectadas</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <p>Existem <strong id="qtdInconsistenciasSalvar">0</strong> inconsistência(s) que precisam ser verificadas.</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>Você pode salvar mesmo com inconsistências, mas precisa justificar.
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="checkConfirmaInconsistencias">
+                    <label class="form-check-label" for="checkConfirmaInconsistencias">
+                        <strong>Confirmo que revisei as inconsistências e desejo prosseguir</strong>
+                    </label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Justificativa para salvar com inconsistências <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="justificativaInconsistencias" rows="3" placeholder="Descreva o motivo de salvar com inconsistências..." disabled></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-info" onclick="irParaValidacao()"><i class="fas fa-eye me-2"></i>Ver Detalhes</button>
+                <button type="button" class="btn btn-danger" id="btnSalvarComInconsistencias" onclick="salvarComInconsistencias()" disabled><i class="fas fa-save me-2"></i>Salvar Mesmo Assim</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Resetar -->
+<div class="modal fade" id="modalConfirmarResetar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning"><h5 class="modal-title"><i class="fas fa-undo me-2"></i>Resetar edição</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                {% if tem_rascunho_pendente %}
+                <p>Isso recarrega a tela com o <strong>rascunho pendente</strong> salvo anteriormente para esta CCO,
+                descartando apenas as alterações feitas nesta sessão (ainda não salvas).</p>
+                <p class="text-muted small mb-0">O rascunho em si não é apagado — para voltar ao original de produção,
+                use "Descartar Rascunho".</p>
+                {% else %}
+                <p>Isso recarrega a tela com os dados originais de produção, descartando as alterações feitas nesta
+                sessão (ainda não salvas).</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="window.location.reload()"><i class="fas fa-undo me-2"></i>Confirmar Reset</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Descartar Rascunho -->
+<div class="modal fade" id="modalConfirmarDescartarRascunho" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white"><h5 class="modal-title"><i class="fas fa-trash-alt me-2"></i>Descartar rascunho</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <p>Isso apaga permanentemente o <strong>rascunho de edição pendente</strong> desta CCO (incluindo
+                qualquer correção nova já adicionada a ele) e recarrega a tela com os dados originais de produção.</p>
+                <p class="text-danger small mb-0"><i class="fas fa-exclamation-triangle me-1"></i>Essa ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarDescartarRascunho" onclick="descartarRascunho()"><i class="fas fa-trash-alt me-2"></i>Descartar Rascunho</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+const ccoId = '{{ cco._id }}';
+const alteracoesRaiz = {};
+const alteracoesCorrecoes = {};
+let inconsistencias = [];
+let inicializandoTela = true;
+const dadosOriginais = { raiz: {{ cco|tojson|safe }}, correcoes: {{ correcoes|tojson|safe }} };
+const LABELS_CAMPOS = {{ labels|tojson|safe }};
+
+function labelCampo(campo) {
+    return LABELS_CAMPOS[campo] || campo;
+}
+
+const CAMPOS_CORRECAO_SOMENTE_LEITURA = new Set([
+    'tipo',
+    'subTipo',
+    'idContaCustoOleoCorrigida',
+    'dataCriacaoCorrecao'
+]);
+
+// Campos monetários/inteiros da aba "Nova Correção" que o usuário realmente editou nesta sessão.
+// Só esses são enviados ao salvar — campos não tocados ficam de fora do payload para que o backend
+// resolva o valor a partir do Decimal128 original (correção anterior/raiz), sem passar pelo float do JS.
+const camposEditadosNovaCorrecao = new Set();
+
+function marcarCampoEditadoNovaCorrecao(campo) {
+    camposEditadosNovaCorrecao.add(campo);
+}
+
+// Campos que formam um "cluster" recalculado em conjunto por calcularNovaCorrecao(): ao editar
+// qualquer um deles, os demais passam a valer o que está em tela (não mais o valor pré-preenchido).
+const CLUSTER_CAMPOS_NOVA_CORRECAO = [
+    'valorReconhecidoExploracao', 'valorReconhecidoProducao', 'valorReconhecido',
+    'overHeadExploracao', 'overHeadProducao', 'overHeadTotal',
+    'valorReconhecidoComOhOriginal', 'valorReconhecidoComOH', 'diferencaValor', 'valorRecuperado'
+];
+
+function marcarClusterEditadoNovaCorrecao() {
+    CLUSTER_CAMPOS_NOVA_CORRECAO.forEach(marcarCampoEditadoNovaCorrecao);
+}
+
+// Prefill original de "Valor Lançamento Total" (baseado na última correção/raiz, para
+// IPCA/IGPM/RETIFICACAO). Para RECUPERACAO a regra é diferente (== Raiz.valorLancamentoTotal,
+// "desfaz indexação"), então esse valor é trocado ao selecionar o tipo e restaurado ao sair dele.
+const valorLancamentoTotalPrefillOriginal = (function() {
+    const input = document.getElementById('nc_valorLancamentoTotal');
+    return input ? input.value : '0';
+})();
+
+function parseValor(valor) {
+    if (typeof valor === 'number') return valor;
+    if (valor === null || valor === undefined || valor === '') return 0;
+
+    let limpo = String(valor)
+        .replace(/R\$\s*/gi, '')
+        .replace(/US\$\s*/gi, '')
+        .replace(/USD\s*/gi, '')
+        .replace(/\$/g, '')
+        .replace(/%/g, '')
+        .replace(/\s/g, '')
+        .trim();
+
+    if (!limpo) return 0;
+
+    const ultimaVirgula = limpo.lastIndexOf(',');
+    const ultimoPonto = limpo.lastIndexOf('.');
+
+    if (ultimaVirgula !== -1 && ultimoPonto !== -1) {
+        if (ultimaVirgula > ultimoPonto) {
+            // Formato BR: 1.234,56
+            limpo = limpo.replace(/\./g, '').replace(',', '.');
+        } else {
+            // Formato US com separador de milhar: 1,234.56
+            limpo = limpo.replace(/,/g, '');
+        }
+    } else if (ultimaVirgula !== -1) {
+        // Formato BR sem separador de milhar: 1234,56
+        limpo = limpo.replace(',', '.');
+    }
+
+    const num = parseFloat(limpo);
+    return isNaN(num) ? 0 : num;
+}
+
+function normalizarTextoDecimalBruto(valor) {
+    // Mesma limpeza de máscara/locale que parseValor(), mas devolve STRING em vez de
+    // Number — preserva quantas casas decimais existirem no texto (parseValor/Number
+    // do JS tem só ~15-17 dígitos significativos de precisão; um valor digitado ou
+    // colado pelo usuário não pode ser arredondado por causa dessa limitação).
+    if (typeof valor === 'number') return String(valor);
+    if (valor === null || valor === undefined || valor === '') return '0';
+
+    let limpo = String(valor)
+        .replace(/R\$\s*/gi, '')
+        .replace(/US\$\s*/gi, '')
+        .replace(/USD\s*/gi, '')
+        .replace(/\$/g, '')
+        .replace(/%/g, '')
+        .replace(/\s/g, '')
+        .trim();
+
+    if (!limpo) return '0';
+
+    const negativo = limpo.startsWith('-');
+    if (negativo || limpo.startsWith('+')) {
+        limpo = limpo.slice(1);
+    }
+
+    const ultimaVirgula = limpo.lastIndexOf(',');
+    const ultimoPonto = limpo.lastIndexOf('.');
+
+    if (ultimaVirgula !== -1 && ultimoPonto !== -1) {
+        if (ultimaVirgula > ultimoPonto) {
+            // Formato BR: 1.234,56
+            limpo = limpo.replace(/\./g, '').replace(',', '.');
+        } else {
+            // Formato US com separador de milhar: 1,234.56
+            limpo = limpo.replace(/,/g, '');
+        }
+    } else if (ultimaVirgula !== -1) {
+        // Formato BR sem separador de milhar: 1234,56
+        limpo = limpo.replace(',', '.');
+    }
+
+    if (!/^\d*\.?\d*$/.test(limpo) || limpo === '' || limpo === '.') {
+        return '0';
+    }
+
+    return (negativo && parseFloat(limpo) !== 0 ? '-' : '') + limpo;
+}
+
+function absTextoDecimal(valor) {
+    const texto = normalizarTextoDecimalBruto(valor);
+    return texto.startsWith('-') ? texto.slice(1) : texto;
+}
+
+function canonizarTextoDecimal(valor) {
+    // Forma canônica de um texto decimal: remove zeros à esquerda do inteiro e à
+    // direita do decimal, mas preserva todos os dígitos significativos — usado para
+    // comparar "mudou de verdade?" sem a tolerância grosseira de uma comparação por
+    // Number (float64 arredonda/gera falso "sem mudança" em edições de casas
+    // decimais profundas) nem falsos positivos por causa de zeros de formatação.
+    let texto = normalizarTextoDecimalBruto(valor);
+    const negativo = texto.startsWith('-');
+    if (negativo) texto = texto.slice(1);
+
+    let [parteInteira, parteDecimal] = texto.split('.');
+    parteInteira = (parteInteira || '0').replace(/^0+(?=\d)/, '');
+    parteDecimal = (parteDecimal || '').replace(/0+$/, '');
+
+    const semSinal = parteDecimal ? parteInteira + '.' + parteDecimal : parteInteira;
+    const ehZero = /^0*$/.test(semSinal.replace('.', ''));
+
+    return (negativo && !ehZero ? '-' : '') + semSinal;
+}
+
+function converterValorInteiro(valor) {
+    const texto = String(valor ?? '').trim();
+
+    if (texto === '') return 0;
+
+    if (!/^\d+$/.test(texto)) {
+        return null;
+    }
+
+    const numero = Number(texto);
+
+    if (!Number.isSafeInteger(numero) || numero < 0) {
+        return null;
+    }
+
+    return numero;
+}
+
+function configurarInputsInteiros() {
+    document.querySelectorAll('.campo-inteiro').forEach(function(input) {
+        input.setAttribute('step', '1');
+        input.setAttribute('min', '0');
+        input.setAttribute('inputmode', 'numeric');
+
+        const valorInicial = converterValorInteiro(input.value);
+
+        if (valorInicial === null) {
+            input.value = '0';
+            input.dataset.ultimoValorInteiro = '0';
+        } else {
+            input.value = String(valorInicial);
+            input.dataset.ultimoValorInteiro = String(valorInicial);
+        }
+
+        input.addEventListener('keydown', function(event) {
+            if (['.', ',', 'e', 'E', '+', '-'].includes(event.key)) {
+                event.preventDefault();
+            }
+        });
+
+        input.addEventListener('paste', function(event) {
+            const textoColado = (
+                event.clipboardData
+                || window.clipboardData
+            ).getData('text').trim();
+
+            if (!/^\d+$/.test(textoColado)) {
+                event.preventDefault();
+                this.setCustomValidity('Informe apenas números inteiros.');
+                this.reportValidity();
+
+                setTimeout(() => {
+                    this.setCustomValidity('');
+                }, 1500);
+
+                return;
+            }
+
+            event.preventDefault();
+
+            const inteiro = converterValorInteiro(textoColado);
+
+            if (inteiro === null) {
+                this.setCustomValidity('Informe apenas números inteiros.');
+                this.reportValidity();
+                return;
+            }
+
+            this.value = String(inteiro);
+            this.dataset.ultimoValorInteiro = String(inteiro);
+            this.setCustomValidity('');
+
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+            this.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        input.addEventListener('input', function() {
+            const textoAtual = String(this.value ?? '').trim();
+
+            if (textoAtual === '') {
+                this.setCustomValidity('');
+                return;
+            }
+
+            const inteiro = converterValorInteiro(textoAtual);
+
+            if (inteiro === null) {
+                this.value = this.dataset.ultimoValorInteiro || '0';
+                this.setCustomValidity('Informe apenas números inteiros.');
+                this.reportValidity();
+                return;
+            }
+
+            this.value = String(inteiro);
+            this.dataset.ultimoValorInteiro = String(inteiro);
+            this.setCustomValidity('');
+        });
+
+        input.addEventListener('blur', function() {
+            if (String(this.value ?? '').trim() === '') {
+                this.value = this.dataset.ultimoValorInteiro || '0';
+            }
+
+            const inteiro = converterValorInteiro(this.value);
+
+            if (inteiro === null) {
+                this.value = this.dataset.ultimoValorInteiro || '0';
+            } else {
+                this.value = String(inteiro);
+                this.dataset.ultimoValorInteiro = String(inteiro);
+            }
+
+            this.setCustomValidity('');
+        });
+    });
+}
+
+function validarInputsInteirosAntesSalvar() {
+    const inputs = Array.from(
+        document.querySelectorAll('.campo-inteiro')
+    );
+
+    for (const input of inputs) {
+        const inteiro = converterValorInteiro(input.value);
+
+        if (inteiro === null) {
+            input.setCustomValidity('Informe apenas números inteiros.');
+            input.reportValidity();
+            input.focus();
+            return false;
+        }
+
+        input.value = String(inteiro);
+        input.dataset.ultimoValorInteiro = String(inteiro);
+        input.setCustomValidity('');
+    }
+
+    return true;
+}
+
+function formatarValor(valor, decimais = 15) {
+    return parseValor(valor).toFixed(decimais).replace('.', ',');
+}
+
+function formatarMoeda(valor, moeda = 'BRL') {
+    const numero = parseValor(valor);
+
+    if (moeda === 'USD') {
+        return 'USD ' + numero.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    return 'R$ ' + numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function formatarPercentual(valor) {
+    const numero = parseValor(valor);
+
+    return numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + ' %';
+}
+
+function obterTextoLabelInput(input) {
+    const container = input ? input.closest('.col-md-3, .col-md-4, .col-md-6, .campo-editavel') : null;
+    const label = container ? container.querySelector('label') : null;
+    return label ? String(label.textContent || '').trim() : '';
+}
+
+function campoMonetarioEhPercentual(input) {
+    if (!input) return false;
+
+    const id = String(input.id || '').toLowerCase();
+    const label = obterTextoLabelInput(input).toLowerCase();
+
+    return (
+        label.includes('%')
+        || id.endsWith('_igpmacumulado')
+        || id.endsWith('_ipcaacumulado')
+        || id.endsWith('_taxacorrecao')
+        || id.includes('percentual')
+    );
+}
+
+function campoMonetarioDeveExibirMoeda(input) {
+    if (!input) return false;
+
+    const id = String(input.id || '').toLowerCase();
+    const label = obterTextoLabelInput(input).toLowerCase();
+
+    // Alguns campos usam a classe valor-monetario apenas para máscara numérica,
+    // mas representam percentual/taxa e não devem receber símbolo de moeda.
+    if (label.includes('%')) return false;
+
+    return !(
+        id.includes('taxacorrecao')
+        || id.endsWith('_igpmacumulado')
+        || id.endsWith('_ipcaacumulado')
+        || id.includes('percentual')
+        || id.includes('variacao')
+    );
+}
+
+function detectarMoedaInput(input) {
+    if (!input) return 'BRL';
+
+    const valorAtual = String(input.value || '').trim();
+    const label = obterTextoLabelInput(input);
+
+    // Uma indicação explícita digitada/colada pelo usuário ou presente no label
+    // tem prioridade sobre a moeda previamente inferida para o campo.
+    if (/^(USD|US\$|\$)\s*/i.test(valorAtual) || /\bUSD\b|US\$/i.test(label)) {
+        return 'USD';
+    }
+
+    if (/^R\$\s*/i.test(valorAtual)) {
+        return 'BRL';
+    }
+
+    const moedaDeclarada = String(input.dataset.moeda || '').toUpperCase();
+    if (moedaDeclarada === 'USD') return 'USD';
+    if (moedaDeclarada === 'BRL') return 'BRL';
+
+    return 'BRL';
+}
+
+function formatarCampoMonetarioInput(input) {
+    if (!input || !input.classList.contains('valor-monetario')) return;
+
+    const valorNumerico = parseValor(
+        input.dataset.valorRaw !== undefined && input.dataset.valorRaw !== ''
+            ? input.dataset.valorRaw
+            : input.value
+    );
+
+    input.dataset.valorRaw = String(valorNumerico);
+
+    if (campoMonetarioEhPercentual(input)) {
+        input.value = formatarPercentual(valorNumerico);
+    } else if (campoMonetarioDeveExibirMoeda(input)) {
+        const moeda = detectarMoedaInput(input);
+        input.dataset.moeda = moeda;
+        input.value = formatarMoeda(valorNumerico, moeda);
+    }
+
+    atualizarTooltip(input);
+}
+
+function campoEhDiferencaValorInput(input) {
+    if (!input) return false;
+    const id = String(input.id || '');
+    return id === 'nc_diferencaValor' || id.endsWith('_diferencaValor');
+}
+
+function normalizarInputDiferencaValor(input) {
+    if (!input) return 0;
+
+    const valorPositivoTexto = absTextoDecimal(input.value);
+    input.dataset.valorRaw = valorPositivoTexto;
+    input.dataset.moeda = input.dataset.moeda || detectarMoedaInput(input);
+    input.value = formatarMoeda(parseValor(valorPositivoTexto), input.dataset.moeda);
+    atualizarTooltip(input);
+
+    return parseValor(valorPositivoTexto);
+}
+
+function configurarFormatacaoMonetariaInputs() {
+    document.querySelectorAll('.valor-monetario').forEach(function(input) {
+        // Preserva a string original (não passa por Number) para não perder precisão
+        // além do que float64 suporta logo no carregamento da página.
+        let valorInicialTexto = input.dataset.valorRaw !== undefined && input.dataset.valorRaw !== ''
+            ? input.dataset.valorRaw
+            : normalizarTextoDecimalBruto(input.value);
+
+        if (campoEhDiferencaValorInput(input)) {
+            valorInicialTexto = absTextoDecimal(valorInicialTexto);
+        }
+
+        input.dataset.valorRaw = valorInicialTexto;
+
+        const valorInicial = parseValor(valorInicialTexto);
+
+        if (campoMonetarioEhPercentual(input)) {
+            input.value = formatarPercentual(valorInicial);
+        } else if (campoMonetarioDeveExibirMoeda(input)) {
+            input.dataset.moeda = detectarMoedaInput(input);
+            input.value = formatarMoeda(valorInicial, input.dataset.moeda);
+        }
+
+        atualizarTooltip(input);
+
+        input.addEventListener('focus', function() {
+            // Exibe o valor bruto completo (todas as casas decimais que existirem
+            // em dataset.valorRaw) para que uma eventual edição parta do valor real,
+            // não da máscara de 2 casas exibida em repouso.
+            const bruto = this.dataset.valorRaw !== undefined && this.dataset.valorRaw !== ''
+                ? this.dataset.valorRaw
+                : this.value;
+            this.value = String(bruto).replace('.', ',');
+        });
+
+        input.addEventListener('blur', function() {
+            const valorAnteriorTexto = this.dataset.valorRaw !== undefined && this.dataset.valorRaw !== ''
+                ? this.dataset.valorRaw
+                : normalizarTextoDecimalBruto(this.value);
+
+            let valorDigitadoTexto = normalizarTextoDecimalBruto(this.value);
+
+            if (campoEhDiferencaValorInput(this)) {
+                valorDigitadoTexto = absTextoDecimal(valorDigitadoTexto);
+            }
+
+            // Só regrava dataset.valorRaw quando o valor realmente mudou (comparação
+            // numérica, tolerante a diferenças só de formatação). Quando mudou, grava o
+            // texto normalizado (preserva a precisão exata digitada/colada, sem passar
+            // por Number). Um clique/blur sem edição não pode colapsar a precisão do
+            // valor original para a máscara de 2 casas exibida em tela.
+            if (parseValor(valorDigitadoTexto) !== parseValor(valorAnteriorTexto)) {
+                this.dataset.valorRaw = valorDigitadoTexto;
+            }
+
+            const valorParaExibir = parseValor(this.dataset.valorRaw);
+
+            if (campoMonetarioEhPercentual(this)) {
+                this.value = formatarPercentual(valorParaExibir);
+            } else if (campoMonetarioDeveExibirMoeda(this)) {
+                this.dataset.moeda = this.dataset.moeda || detectarMoedaInput(this);
+                this.value = formatarMoeda(valorParaExibir, this.dataset.moeda);
+            }
+
+            atualizarTooltip(this);
+        });
+    });
+}
+
+const CAMPOS_DATA_CCO = new Set([
+    'dataLancamento',
+    'dataReconhecimento',
+    'dataCriacao',
+    'dataAtualizacao',
+    'dataCriacaoCorrecao',
+    'dataCorrecao',
+    'createdAt',
+    'updatedAt'
+]);
+
+function campoEhData(nome) {
+    return CAMPOS_DATA_CCO.has(nome);
+}
+
+function dataJaEstaNoFormatoFrontend(valor) {
+    return /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(String(valor ?? '').trim());
+}
+
+function prepararTextoDataParaParse(valor) {
+    let texto = String(valor ?? '').trim();
+
+    if (!texto) return '';
+
+    // Se já estiver no formato do frontend, mantém como está.
+    if (dataJaEstaNoFormatoFrontend(texto)) {
+        return texto;
+    }
+
+    // Corrige casos vindos como "2026-05-26T19:19:22 00:00".
+    texto = texto.replace(/ (\d{2}:\d{2})$/, '+$1');
+
+    // Formato ISO sem timezone: tratar como UTC para exibir no horário do Brasil.
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(texto)) {
+        texto += 'Z';
+    }
+
+    // Formato com espaço entre data/hora, sem timezone: tratar como UTC.
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(texto)) {
+        texto = texto.replace(' ', 'T') + 'Z';
+    }
+
+    // Formato +0000 -> +00:00 para melhorar compatibilidade do Date.
+    texto = texto.replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+
+    return texto;
+}
+
+function formatarDataCorrecao(valor) {
+    const texto = String(valor ?? '').trim();
+
+    if (!texto) return '';
+
+    if (dataJaEstaNoFormatoFrontend(texto)) {
+        return texto;
+    }
+
+    /*
+     * Regra para dataCorrecao:
+     *
+     * - Com timezone explícito, converte o instante para America/Sao_Paulo.
+     *   Ex.: 2022-08-24T18:33:05-0300 -> 24/08/2022 18:33:05
+     *        2024-03-26T14:30:14+0000 -> 26/03/2024 11:30:14
+     *
+     * - Sem timezone, preserva exatamente a hora informada e apenas muda
+     *   a apresentação para dd/MM/yyyy HH:mm:ss.
+     */
+    const possuiTimezoneExplicito =
+        /(?:Z|[+-]\d{2}:?\d{2})$/i.test(texto);
+
+    if (!possuiTimezoneExplicito) {
+        const matchSemTimezone = texto.match(
+            /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/
+        );
+
+        if (matchSemTimezone) {
+            const [, ano, mes, dia, hora, minuto, segundo] = matchSemTimezone;
+            return `${dia}/${mes}/${ano} ${hora}:${minuto}:${segundo}`;
+        }
+
+        return texto;
+    }
+
+    // Normaliza -0300/+0000 para -03:00/+00:00 antes do Date.
+    const textoPreparado = texto.replace(
+        /([+-]\d{2})(\d{2})$/,
+        '$1:$2'
+    );
+
+    const data = new Date(textoPreparado);
+
+    if (Number.isNaN(data.getTime())) {
+        return texto;
+    }
+
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).formatToParts(data).reduce((acc, parte) => {
+        acc[parte.type] = parte.value;
+        return acc;
+    }, {});
+
+    return `${partes.day}/${partes.month}/${partes.year} ${partes.hour}:${partes.minute}:${partes.second}`;
+}
+
+function formatarDataParaFrontend(valor, nomeCampo = '') {
+    const textoOriginal = String(valor ?? '').trim();
+
+    if (!textoOriginal) return '';
+
+    /*
+     * dataCorrecao respeita o offset recebido:
+     * - com timezone explícito, converte para America/Sao_Paulo;
+     * - sem timezone, preserva a hora literal.
+     */
+    if (nomeCampo === 'dataCorrecao') {
+        return formatarDataCorrecao(textoOriginal);
+    }
+
+    if (dataJaEstaNoFormatoFrontend(textoOriginal)) {
+        return textoOriginal;
+    }
+
+    /*
+     * Demais datas seguem a regra anterior.
+     * Ex.: dataCriacaoCorrecao vem do Mongo como UTC (+0000) e
+     * deve ser convertida para America/Sao_Paulo.
+     */
+    const textoPreparado = prepararTextoDataParaParse(textoOriginal);
+
+    if (!textoPreparado) return '';
+
+    const data = new Date(textoPreparado);
+
+    if (Number.isNaN(data.getTime())) {
+        return textoOriginal;
+    }
+
+    const partes = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).formatToParts(data).reduce((acc, parte) => {
+        acc[parte.type] = parte.value;
+        return acc;
+    }, {});
+
+    return `${partes.day}/${partes.month}/${partes.year} ${partes.hour}:${partes.minute}:${partes.second}`;
+}
+
+function timestampDataParaOrdenacao(valor) {
+    const texto = String(valor ?? '').trim();
+
+    if (!texto) return 0;
+
+    const matchDataBr = texto.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})$/);
+
+    if (matchDataBr) {
+        const [, dia, mes, ano, hora, minuto, segundo] = matchDataBr;
+        return new Date(
+            Number(ano),
+            Number(mes) - 1,
+            Number(dia),
+            Number(hora),
+            Number(minuto),
+            Number(segundo)
+        ).getTime();
+    }
+
+    const data = new Date(prepararTextoDataParaParse(texto));
+
+    return Number.isNaN(data.getTime()) ? 0 : data.getTime();
+}
+
+function obterTimestampDataCorrecao(card) {
+    return timestampDataParaOrdenacao(card.dataset.dataCorrecaoOriginal || card.dataset.dataCorrecao);
+}
+
+function obterFonteDataCorrecao(indice, cardReferencia = null) {
+    const card =
+        cardReferencia
+        || document.getElementById('correcao_' + indice);
+
+    const input =
+        document.getElementById('correcao_' + indice + '_dataCorrecao');
+
+    const header =
+        document.getElementById('data_cabecalho_correcao_' + indice);
+
+    /*
+     * Durante a carga inicial podem existir representações diferentes
+     * da mesma data:
+     *
+     * card:  2024-03-26T14:30:14
+     * input: 2024-03-26T14:30:14+0000
+     *
+     * A versão com timezone é a única que permite fazer a conversão
+     * correta para America/Sao_Paulo. Portanto, ela tem prioridade.
+     */
+    const candidatos = [
+        input ? input.getAttribute('data-valor-raw') : '',
+        input ? input.value : '',
+        card ? card.getAttribute('data-data-correcao-original') : '',
+        card ? card.getAttribute('data-data-correcao') : '',
+        header ? header.getAttribute('data-data-raw') : '',
+        header ? header.textContent : ''
+    ]
+        .map(function(valor) {
+            return String(valor || '').trim();
+        })
+        .filter(Boolean);
+
+    const comTimezone = candidatos.find(function(valor) {
+        return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(valor);
+    });
+
+    if (comTimezone) {
+        return comTimezone;
+    }
+
+    return candidatos.length > 0 ? candidatos[0] : '';
+}
+
+function sincronizarDataCorrecaoElementos(indice, valorReferencia) {
+    const card = document.getElementById('correcao_' + indice);
+    const header = document.getElementById('data_cabecalho_correcao_' + indice);
+    const input = document.getElementById('correcao_' + indice + '_dataCorrecao');
+
+    const valorFormatado = formatarDataParaFrontend(
+        valorReferencia,
+        'dataCorrecao'
+    );
+
+    /*
+     * Todos os elementos que representam dataCorrecao devem permanecer
+     * sincronizados após a conversão/formatação.
+     */
+    if (card) {
+        card.dataset.dataCorrecao = valorFormatado;
+        card.setAttribute('data-data-correcao', valorFormatado);
+
+        card.dataset.dataCorrecaoOriginal = valorFormatado;
+        card.setAttribute('data-data-correcao-original', valorFormatado);
+    }
+
+    if (header) {
+        header.textContent = valorFormatado;
+
+        header.dataset.dataRaw = valorFormatado;
+        header.setAttribute('data-data-raw', valorFormatado);
+
+        header.title = valorFormatado;
+        header.setAttribute('title', valorFormatado);
+    }
+
+    if (input) {
+        input.value = valorFormatado;
+        input.setAttribute('value', valorFormatado);
+
+        input.dataset.valorRaw = valorFormatado;
+        input.setAttribute('data-valor-raw', valorFormatado);
+
+        input.title = valorFormatado;
+        input.setAttribute('title', valorFormatado);
+    }
+
+    return valorFormatado;
+}
+
+function formatarAtributoDataCorrecaoCard(card) {
+    if (!card) return;
+
+    const indice = card.dataset.indice;
+
+    if (indice === undefined || indice === null || indice === '') {
+        return;
+    }
+
+    /*
+     * Não usa cegamente o valor do card.
+     * Procura primeiro a representação que ainda contém timezone,
+     * evitando perder +0000/-0300 antes da conversão.
+     */
+    const valorReferencia = obterFonteDataCorrecao(
+        indice,
+        card
+    );
+
+    sincronizarDataCorrecaoElementos(
+        indice,
+        valorReferencia
+    );
+}
+
+function obterNomeCampoDataInput(input) {
+    if (!input) return '';
+
+    const id = String(input.id || '');
+
+    if (id.startsWith('campo_')) {
+        return id.substring('campo_'.length);
+    }
+
+    const matchCorrecao = id.match(/^correcao_\d+_(.+)$/);
+
+    if (matchCorrecao) {
+        return matchCorrecao[1];
+    }
+
+    return '';
+}
+
+function formatarCampoDataInput(input) {
+    if (!input) return;
+
+    const valorAtual = String(input.value || input.dataset.valorRaw || '').trim();
+    const nomeCampo = obterNomeCampoDataInput(input);
+    const valorFormatado = formatarDataParaFrontend(valorAtual, nomeCampo);
+
+    input.value = valorFormatado;
+    input.setAttribute('value', valorFormatado);
+
+    input.dataset.valorRaw = valorFormatado;
+    input.setAttribute('data-valor-raw', valorFormatado);
+
+    input.title = valorFormatado;
+    input.setAttribute('title', valorFormatado);
+}
+
+function onCampoDataChange(nome, input, contexto, indice) {
+    if (!input) return;
+
+    formatarCampoDataInput(input);
+
+    const valorFormatado = String(input.value || '').trim();
+
+    onCampoChange(nome, valorFormatado, contexto, indice);
+
+    if (contexto === 'correcao' && nome === 'dataCorrecao') {
+        sincronizarDataCorrecaoElementos(
+            indice,
+            valorFormatado
+        );
+    }
+}
+
+function sincronizarDataCabecalhoCorrecao(indice) {
+    const card = document.getElementById('correcao_' + indice);
+    const input = document.getElementById('correcao_' + indice + '_dataCorrecao');
+    const header = document.getElementById('data_cabecalho_correcao_' + indice);
+
+    if (!card && !input && !header) return;
+
+    const valorReferencia = obterFonteDataCorrecao(
+        indice,
+        card
+    );
+
+    sincronizarDataCorrecaoElementos(
+        indice,
+        valorReferencia
+    );
+}
+
+function inicializarFormatacaoDatas() {
+    document.querySelectorAll('.correcao-card').forEach(formatarAtributoDataCorrecaoCard);
+
+    document.querySelectorAll('.campo-data').forEach(function(input) {
+        const valorOriginal = String(input.dataset.valorRaw || input.value || '').trim();
+        const nomeCampo = obterNomeCampoDataInput(input);
+        const valorFormatado = formatarDataParaFrontend(valorOriginal, nomeCampo);
+
+        input.value = valorFormatado;
+        input.setAttribute('value', valorFormatado);
+
+        input.dataset.valorRaw = valorFormatado;
+        input.setAttribute('data-valor-raw', valorFormatado);
+
+        input.dataset.valorRawOriginal = valorFormatado;
+        input.setAttribute('data-valor-raw-original', valorFormatado);
+
+        input.title = valorFormatado;
+        input.setAttribute('title', valorFormatado);
+
+        const container = input.closest('.campo-editavel');
+        if (container) {
+            container.dataset.valorOriginal = valorFormatado;
+        }
+    });
+
+    document.querySelectorAll('.data-formatada-br').forEach(function(elemento) {
+        const indice = elemento.dataset.correcaoIndice;
+
+        if (indice) {
+            sincronizarDataCabecalhoCorrecao(indice);
+            return;
+        }
+
+        const valorRaw = elemento.dataset.dataRaw || elemento.textContent || '';
+        const valorFormatado = formatarDataParaFrontend(valorRaw);
+
+        elemento.dataset.dataRaw = valorFormatado;
+        elemento.setAttribute('data-data-raw', valorFormatado);
+        elemento.textContent = valorFormatado;
+        elemento.title = valorFormatado;
+        elemento.setAttribute('title', valorFormatado);
+    });
+}
+
+function obterInputCampo(nome, contexto = 'raiz', indice = null) {
+    if (contexto === 'raiz') return document.getElementById('campo_' + nome);
+    if (contexto === 'nova') return document.getElementById('nc_' + nome);
+    return document.getElementById('correcao_' + indice + '_' + nome);
+}
+
+function obterValorParaAlteracao(nome, valor, contexto = 'raiz', indice = null) {
+    const input = obterInputCampo(nome, contexto, indice);
+
+    if (campoEhData(nome) || (input && input.classList.contains('campo-data'))) {
+        return String((input && input.value) || valor || '').trim();
+    }
+
+    if (input && input.classList.contains('valor-monetario')) {
+        // String, não Number: preserva a precisão exata digitada/colada pelo usuário
+        // no payload enviado ao salvar (Number do JS só tem ~15-17 dígitos
+        // significativos; o backend já grava Decimal128 direto a partir da string).
+        return input.dataset.valorRaw !== undefined && input.dataset.valorRaw !== ''
+            ? normalizarTextoDecimalBruto(input.dataset.valorRaw)
+            : normalizarTextoDecimalBruto(valor);
+    }
+
+    if (input && input.classList.contains('campo-inteiro')) {
+        const inteiro = converterValorInteiro(input.value);
+
+        return inteiro !== null
+            ? inteiro
+            : converterValorInteiro(input.dataset.ultimoValorInteiro || 0);
+    }
+
+    if (input && input.type === 'number') {
+        return parseValor(valor);
+    }
+
+    if (input && input.tagName === 'SELECT') {
+        if (valor === 'true') return true;
+        if (valor === 'false') return false;
+    }
+
+    return valor;
+}
+
+function valoresAlteracaoIguais(valorAtual, valorOriginal, input) {
+    if (input && input.classList.contains('valor-monetario')) {
+        // Comparação textual/canônica, não por Number com tolerância: uma edição em
+        // casa decimal profunda (5ª, 6ª...) não pode deixar de ser detectada só
+        // porque a diferença numérica é pequena.
+        return canonizarTextoDecimal(valorAtual) === canonizarTextoDecimal(valorOriginal);
+    }
+
+    if (input && input.type === 'number') {
+        return Math.abs(parseValor(valorAtual) - parseValor(valorOriginal)) <= 0.001;
+    }
+
+    return String(valorAtual ?? '') === String(valorOriginal ?? '');
+}
+
+function atualizarTooltip(input) {
+    if (!input) return;
+
+    // Só leitura: não grava em dataset.valorRaw (isso já é feito por quem chama esta
+    // função, quando é o momento certo — aqui seria uma sobrescrita destrutiva via
+    // Number/float64, exatamente a perda de precisão que este ajuste corrige).
+    const valorTexto = input.dataset.valorRaw !== undefined && input.dataset.valorRaw !== ''
+        ? input.dataset.valorRaw
+        : normalizarTextoDecimalBruto(input.value);
+    const valor = parseValor(valorTexto);
+    const valorCompleto = valorTexto.replace('.', ',');
+
+    if (campoMonetarioEhPercentual(input)) {
+        input.title = formatarPercentual(valor) + ' | Valor completo: ' + valorCompleto + ' %';
+    } else if (campoMonetarioDeveExibirMoeda(input)) {
+        const moeda = input.dataset.moeda || detectarMoedaInput(input);
+        input.title = formatarMoeda(valor, moeda) + ' | Valor completo: ' + valorCompleto;
+    } else {
+        input.title = valorCompleto;
+    }
+}
+
+function onPasteValor(event, input) {
+    event.preventDefault();
+
+    const texto = (event.clipboardData || window.clipboardData).getData('text');
+
+    if (/^(USD|US\$|\$)\s*/i.test(String(texto || '').trim())) {
+        input.dataset.moeda = 'USD';
+    } else if (/^R\$\s*/i.test(String(texto || '').trim())) {
+        input.dataset.moeda = 'BRL';
+    }
+
+    // Preserva o texto colado como string (sem passar por Number) para não perder
+    // precisão além do que float64 suporta. Mantém o campo exibindo o valor bruto
+    // (sem máscara de moeda) — se já reformatasse para 2 casas aqui, o próprio ciclo
+    // de blur entenderia isso como "o usuário mudou o valor" e colapsaria a precisão
+    // que acabou de ser colada.
+    const valorColadoTexto = normalizarTextoDecimalBruto(texto);
+    input.dataset.valorRaw = valorColadoTexto;
+    input.value = valorColadoTexto.replace('.', ',');
+    input.dispatchEvent(new Event('change'));
+
+    atualizarTooltip(input);
+}
+
+function getValorCampo(nome, contexto = 'raiz', indice = null) {
+    const input = obterInputCampo(nome, contexto, indice);
+
+    if (!input) return 0;
+
+    if (input.classList.contains('valor-monetario')
+        && input.dataset.valorRaw !== undefined
+        && input.dataset.valorRaw !== '') {
+        return parseValor(input.dataset.valorRaw);
+    }
+
+    return parseValor(input.value);
+}
+
+function getValorCampoTexto(nome, contexto = 'raiz', indice = null) {
+    // Igual a getValorCampo(), mas devolve a string (sem passar por Number) — usar
+    // sempre que o valor for para o payload de salvamento de um campo monetário
+    // editável, para preservar a precisão exata digitada/colada pelo usuário.
+    const input = obterInputCampo(nome, contexto, indice);
+
+    if (!input) return '0';
+
+    if (input.classList.contains('valor-monetario')
+        && input.dataset.valorRaw !== undefined
+        && input.dataset.valorRaw !== '') {
+        return normalizarTextoDecimalBruto(input.dataset.valorRaw);
+    }
+
+    return normalizarTextoDecimalBruto(input.value);
+}
+
+function onCampoChange(nome, valor, contexto, indice) {
+    if (contexto === 'correcao' && CAMPOS_CORRECAO_SOMENTE_LEITURA.has(nome)) {
+        return;
+    }
+
+    const input = obterInputCampo(nome, contexto, indice);
+
+    if (nome === 'diferencaValor' && input) {
+        valor = normalizarInputDiferencaValor(input);
+    } else if (input && input.classList.contains('valor-monetario')) {
+        // Preserva string (não Number) para não perder precisão do que foi digitado/colado.
+        input.dataset.valorRaw = normalizarTextoDecimalBruto(input.value);
+        atualizarTooltip(input);
+    }
+
+    if (contexto === 'raiz') {
+        marcarAlteracao(nome, valor);
+    } else {
+        marcarAlteracaoCorrecao(indice, nome, valor);
+    }
+
+    validarTudo();
+}
+
+function marcarAlteracao(campo, valor) {
+    const container = document.querySelector('[data-campo="' + campo + '"]');
+    const input = obterInputCampo(campo, 'raiz');
+    if (!container) return;
+
+    const valorOriginal = campoEhData(campo)
+        ? String(input ? (input.dataset.valorRawOriginal || container.dataset.valorOriginal || '') : '').trim()
+        : container.dataset.valorOriginal;
+
+    const valorAlteracao = obterValorParaAlteracao(campo, valor, 'raiz');
+
+    if (!valoresAlteracaoIguais(valorAlteracao, valorOriginal, input)) {
+        container.classList.add('campo-alterado');
+        alteracoesRaiz[campo] = valorAlteracao;
+    } else {
+        container.classList.remove('campo-alterado');
+        delete alteracoesRaiz[campo];
+    }
+    atualizarResumo();
+}
+
+function marcarAlteracaoCorrecao(indice, campo, valor) {
+    if (CAMPOS_CORRECAO_SOMENTE_LEITURA.has(campo)) {
+        return;
+    }
+
+    if (!alteracoesCorrecoes[indice]) alteracoesCorrecoes[indice] = {};
+    alteracoesCorrecoes[indice][campo] = obterValorParaAlteracao(campo, valor, 'correcao', indice);
+    document.getElementById('correcao_' + indice).classList.add('campo-alterado');
+    atualizarResumo();
+}
+
+function getValorTextoCampo(nome, contexto = 'raiz', indice = null) {
+    const input = obterInputCampo(nome, contexto, indice);
+    return input ? String(input.value ?? '').trim() : '';
+}
+
+function obterValorRaizParaComparacao(nome) {
+    const input = document.getElementById('campo_' + nome);
+
+    if (input) {
+        return input.classList.contains('valor-monetario')
+            ? getValorCampo(nome, 'raiz')
+            : String(input.value ?? '').trim();
+    }
+
+    // Campo bloqueado na raiz (sem input em tela, ex.: contrato/campo/faseRemessa):
+    // usa o valor original do documento carregado.
+    const mapaNomeRaiz = { contrato: 'contratoCpp' };
+    const chave = mapaNomeRaiz[nome] || nome;
+    const valor = dadosOriginais && dadosOriginais.raiz ? dadosOriginais.raiz[chave] : undefined;
+    return typeof valor === 'string' ? valor.trim() : valor;
+}
+
+function somarValorRecuperadoCorrecoesExistentes() {
+    // Soma de valorRecuperado de todas as correções RECUPERACAO já existentes
+    // (usada tanto para calcular quanto para validar valorRecuperadoTotal na
+    // aba Nova Correção — mesma fórmula da regra de negócio).
+    let soma = 0;
+    document.querySelectorAll('.correcao-card').forEach(function(card) {
+        if (card.dataset.tipo === 'RECUPERACAO') {
+            soma += getValorCampo('valorRecuperado', 'correcao', parseInt(card.dataset.indice));
+        }
+    });
+    return soma;
+}
+
+function obterValorRaizOriginalRegistro(nome) {
+    // Valor da raiz como persistido originalmente no registro (snapshot carregado
+    // no início da edição, via dadosOriginais), ignorando qualquer edição feita em
+    // tela na aba Campos Raiz na mesma sessão e qualquer máscara/blur do campo.
+    const valor = dadosOriginais && dadosOriginais.raiz ? dadosOriginais.raiz[nome] : undefined;
+    return parseValor(valor);
+}
+
+function limparPopoverElemento(el) {
+    if (!el || typeof bootstrap === 'undefined') return;
+    const instancia = bootstrap.Popover.getInstance(el);
+    if (instancia) instancia.dispose();
+}
+
+function formatarValorPopover(valor, formato) {
+    if (typeof valor === 'number') {
+        if (formato === 'inteiro') return String(Math.round(valor));
+        return formatarMoeda(valor);
+    }
+    return String(valor === undefined || valor === null || valor === '' ? '—' : valor);
+}
+
+function aplicarPopoverCampo(input, status, consistente, detalhes) {
+    if (typeof bootstrap === 'undefined') return;
+
+    const tituloHtml = consistente
+        ? '<span class="text-info"><i class="fas fa-check-circle me-1"></i>Consistente</span>'
+        : '<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Inconsistente</span>';
+
+    const corpoHtml =
+        '<div class="mb-1"><strong>' + detalhes.regraLabel + '</strong></div>'
+        + '<div class="small text-muted mb-2">' + detalhes.formula + '</div>'
+        + '<div><strong>Valor atual:</strong> ' + formatarValorPopover(detalhes.valorAtual, detalhes.formato) + '</div>'
+        + '<div><strong>Valor esperado:</strong> ' + formatarValorPopover(detalhes.valorEsperado, detalhes.formato) + '</div>';
+
+    [input, status].forEach(function(el) {
+        if (!el) return;
+        limparPopoverElemento(el);
+        new bootstrap.Popover(el, {
+            trigger: 'hover focus',
+            html: true,
+            placement: 'top',
+            container: 'body',
+            title: tituloHtml,
+            content: corpoHtml
+        });
+    });
+}
+
+function limparStatusCampo(campo, contexto, indice) {
+    const input = obterInputCampo(campo, contexto, indice);
+    const statusId = contexto === 'raiz' ? 'status_' + campo : 'status_correcao_' + indice + '_' + campo;
+    const status = document.getElementById(statusId);
+
+    if (input) {
+        input.classList.remove('campo-inconsistente', 'campo-consistente', 'campo-com-regra');
+        limparPopoverElemento(input);
+    }
+
+    if (status) {
+        status.innerHTML = '';
+        limparPopoverElemento(status);
+    }
+}
+
+function marcarCampoInconsistente(campo, contexto, indice, detalhes) {
+    const input = obterInputCampo(campo, contexto, indice);
+    const statusId = contexto === 'raiz' ? 'status_' + campo : 'status_correcao_' + indice + '_' + campo;
+    const status = document.getElementById(statusId);
+
+    if (input) {
+        input.classList.remove('campo-consistente');
+        input.classList.add('campo-inconsistente', 'campo-com-regra');
+    }
+
+    if (status) {
+        status.innerHTML = '<i class="fas fa-exclamation-circle icon-inconsistente"></i>';
+    }
+
+    aplicarPopoverCampo(input, status, false, detalhes);
+}
+
+function marcarCampoConsistente(campo, contexto, indice, detalhes) {
+    const input = obterInputCampo(campo, contexto, indice);
+    const statusId = contexto === 'raiz' ? 'status_' + campo : 'status_correcao_' + indice + '_' + campo;
+    const status = document.getElementById(statusId);
+
+    if (input) {
+        input.classList.remove('campo-inconsistente');
+        input.classList.add('campo-consistente', 'campo-com-regra');
+    }
+
+    if (status) {
+        status.innerHTML = '<i class="fas fa-check-circle icon-consistente"></i>';
+    }
+
+    aplicarPopoverCampo(input, status, true, detalhes);
+}
+
+function avaliarRegra(campo, contexto, indice, valorAtual, valorEsperado, regraLabel, formula, opts) {
+    opts = opts || {};
+
+    const input = obterInputCampo(campo, contexto, indice);
+    if (!input) return;
+
+    const ehTexto = opts.texto === true;
+    const formato = ehTexto ? 'texto' : (input.classList.contains('campo-inteiro') ? 'inteiro' : 'moeda');
+    const consistente = ehTexto
+        ? String(valorAtual ?? '').trim() === String(valorEsperado ?? '').trim()
+        : Math.abs((valorAtual || 0) - (valorEsperado || 0)) <= (opts.tolerancia !== undefined ? opts.tolerancia : 0.01);
+
+    const detalhes = { regraLabel, formula, valorAtual, valorEsperado, formato };
+
+    if (!consistente) {
+        const local = contexto === 'raiz'
+            ? 'Raiz'
+            : (contexto === 'nova'
+                ? 'Nova Correção (' + (opts.tipoLabel || '') + ')'
+                : ('Correção #' + indice + ' (' + (opts.tipoLabel || '') + ')'));
+        inconsistencias.push({ local, campo, label: opts.label || campo, valorAtual, valorEsperado, regra: formula, formato });
+        marcarCampoInconsistente(campo, contexto, indice, detalhes);
+    } else {
+        marcarCampoConsistente(campo, contexto, indice, detalhes);
+    }
+}
+
+function validarTudo() {
+    inconsistencias = [];
+    validarRaiz();
+    validarCorrecoes();
+    validarNovaCorrecao();
+    renderizarInconsistencias();
+    atualizarBadgeInconsistencias();
+    // O card "Resumo" mostra a contagem de inconsistências: como ela só é
+    // conhecida após rodar as validações acima, precisa ser atualizado de
+    // novo aqui (chamar antes de validarTudo() deixaria o card desatualizado).
+    atualizarResumo();
+}
+
+function validarRaiz() {
+    const vrExp = getValorCampo('valorReconhecidoExploracao', 'raiz');
+    const vrProd = getValorCampo('valorReconhecidoProducao', 'raiz');
+    const vr = getValorCampo('valorReconhecido', 'raiz');
+    const vnr = getValorCampo('valorNaoReconhecido', 'raiz');
+    const vlt = getValorCampo('valorLancamentoTotal', 'raiz');
+    const vrec = getValorCampo('valorReconhecivel', 'raiz');
+    const ohExp = getValorCampo('overHeadExploracao', 'raiz');
+    const ohProd = getValorCampo('overHeadProducao', 'raiz');
+    const oh = getValorCampo('overHeadTotal', 'raiz');
+    const vrComOH = getValorCampo('valorReconhecidoComOH', 'raiz');
+
+    avaliarRegra('valorLancamentoTotal', 'raiz', null, vlt, vr + vnr,
+        'Valor Lançamento Total', 'valorReconhecido + valorNaoReconhecido',
+        { label: 'Valor Lançamento Total' });
+
+    avaliarRegra('valorReconhecivel', 'raiz', null, vrec, vlt,
+        'Valor Reconhecível', 'valorLancamentoTotal',
+        { label: 'Valor Reconhecível' });
+
+    avaliarRegra('valorReconhecido', 'raiz', null, vr, vrExp + vrProd,
+        'Valor Reconhecido', 'valorReconhecidoExploracao + valorReconhecidoProducao',
+        { label: 'Valor Reconhecido' });
+
+    avaliarRegra('overHeadProducao', 'raiz', null, ohProd, vrProd * 0.01,
+        'Overhead Produção', 'valorReconhecidoProducao × 0,01',
+        { label: 'Overhead Produção' });
+
+    avaliarRegra('overHeadTotal', 'raiz', null, oh, ohExp + ohProd,
+        'Overhead Total', 'overHeadExploracao + overHeadProducao',
+        { label: 'Overhead Total' });
+
+    avaliarRegra('valorReconhecidoComOH', 'raiz', null, vrComOH, vr + oh,
+        'Valor Reconhecido com OH', 'valorReconhecido + overHeadTotal',
+        { label: 'Valor Reconhecido com OH' });
+}
+
+const CAMPOS_CORRECAO_IGUAIS_A_RAIZ_TEXTO = ['contrato', 'campo', 'faseRemessa'];
+const CAMPOS_CORRECAO_IGUAIS_A_RAIZ_NUMERICO = [
+    'quantidadeLancamento', 'valorReconhecido', 'valorReconhecidoProducao',
+    'valorReconhecidoExploracao', 'overHeadProducao', 'overHeadExploracao', 'overHeadTotal'
+];
+
+function validarCamposIguaisARaiz(contexto, indice, tipoLabel) {
+    CAMPOS_CORRECAO_IGUAIS_A_RAIZ_TEXTO.forEach(function(campo) {
+        const input = obterInputCampo(campo, contexto, indice);
+        if (!input) return;
+
+        avaliarRegra(campo, contexto, indice,
+            getValorTextoCampo(campo, contexto, indice),
+            obterValorRaizParaComparacao(campo),
+            'Igual ao valor da raiz', 'Raiz.' + campo,
+            { label: labelCampo(campo), texto: true, tipoLabel });
+    });
+
+    CAMPOS_CORRECAO_IGUAIS_A_RAIZ_NUMERICO.forEach(function(campo) {
+        const input = obterInputCampo(campo, contexto, indice);
+        if (!input) return;
+
+        avaliarRegra(campo, contexto, indice,
+            getValorCampo(campo, contexto, indice),
+            obterValorRaizParaComparacao(campo),
+            'Igual ao valor da raiz', 'Raiz.' + campo,
+            { label: labelCampo(campo), tipoLabel });
+    });
+}
+
+function validarCorrecoes() {
+    const cards = Array.from(document.querySelectorAll('.correcao-card'))
+        .sort((a, b) => obterTimestampDataCorrecao(a) - obterTimestampDataCorrecao(b));
+
+    let anterior = {
+        valorReconhecidoComOH: getValorCampo('valorReconhecidoComOH', 'raiz'),
+        valorLancamentoTotal: getValorCampo('valorLancamentoTotal', 'raiz')
+    };
+    const valorLancamentoTotalRaiz = getValorCampo('valorLancamentoTotal', 'raiz');
+    let somaTaxaCorrecao = 0;
+    let somaDiferencaValor = 0;
+    let valorRecuperadoTotalAcumulado = 0;
+
+    cards.forEach(card => {
+        const indice = parseInt(card.dataset.indice);
+        const tipo = card.dataset.tipo;
+
+        validarCamposIguaisARaiz('correcao', indice, tipo);
+
+        const valorComOhOriginal = getValorCampo('valorReconhecidoComOhOriginal', 'correcao', indice);
+
+        avaliarRegra('valorReconhecidoComOhOriginal', 'correcao', indice,
+            valorComOhOriginal, anterior.valorReconhecidoComOH,
+            'Valor Reconhecido com OH Original', 'Correção anterior (ou Raiz).valorReconhecidoComOH',
+            { label: 'Valor Reconhecido com OH Original', tipoLabel: tipo });
+
+        const vrComOHAtual = getValorCampo('valorReconhecidoComOH', 'correcao', indice);
+        const difAtual = getValorCampo('diferencaValor', 'correcao', indice);
+        const valorLancamentoTotalAtual = getValorCampo('valorLancamentoTotal', 'correcao', indice);
+
+        if (tipo === 'IPCA' || tipo === 'IGPM') {
+            const taxa = getValorCampo('taxaCorrecao', 'correcao', indice) || 0;
+
+            avaliarRegra('valorReconhecidoComOH', 'correcao', indice,
+                vrComOHAtual, valorComOhOriginal * taxa,
+                'Valor Reconhecido com OH', 'valorReconhecidoComOhOriginal × taxaCorrecao',
+                { label: 'Valor Reconhecido com OH', tipoLabel: tipo });
+
+            avaliarRegra('diferencaValor', 'correcao', indice,
+                difAtual, vrComOHAtual - valorComOhOriginal,
+                'Diferença de Valor', 'valorReconhecidoComOH - valorReconhecidoComOhOriginal',
+                { label: 'Diferença de Valor', tipoLabel: tipo });
+
+            avaliarRegra('valorLancamentoTotal', 'correcao', indice,
+                valorLancamentoTotalAtual, anterior.valorLancamentoTotal * taxa,
+                'Valor Lançamento Total', 'Correção anterior (ou Raiz).valorLancamentoTotal × taxaCorrecao',
+                { label: 'Valor Lançamento Total', tipoLabel: tipo });
+
+            avaliarRegra('valorReconhecivel', 'correcao', indice,
+                getValorCampo('valorReconhecivel', 'correcao', indice), valorLancamentoTotalAtual,
+                'Valor Reconhecível', 'valorLancamentoTotal (da própria correção)',
+                { label: 'Valor Reconhecível', tipoLabel: tipo });
+
+            somaTaxaCorrecao += taxa;
+            somaDiferencaValor += difAtual;
+
+            avaliarRegra('igpmAcumulado', 'correcao', indice,
+                getValorCampo('igpmAcumulado', 'correcao', indice), somaTaxaCorrecao,
+                'IGPM/IPCA Acumulado', 'Soma de taxaCorrecao das correções IPCA/IGPM até esta',
+                { label: 'IGPM Acumulado', tipoLabel: tipo });
+
+            avaliarRegra('igpmAcumuladoReais', 'correcao', indice,
+                getValorCampo('igpmAcumuladoReais', 'correcao', indice), somaDiferencaValor,
+                'IGPM/IPCA Acumulado (R$)', 'Soma de diferencaValor das correções IPCA/IGPM até esta',
+                { label: 'IGPM Acumulado (R$)', tipoLabel: tipo });
+
+            const calcAcum = document.getElementById('calc_' + indice + '_igpmAcumulado');
+            if (calcAcum) calcAcum.value = (somaTaxaCorrecao * 100).toFixed(4) + '%';
+
+            const calcAcumReais = document.getElementById('calc_' + indice + '_igpmAcumuladoReais');
+            if (calcAcumReais) calcAcumReais.value = formatarMoeda(somaDiferencaValor);
+        } else if (tipo === 'RECUPERACAO') {
+            const valorRecuperado = getValorCampo('valorRecuperado', 'correcao', indice);
+
+            avaliarRegra('valorReconhecidoComOH', 'correcao', indice,
+                vrComOHAtual, valorComOhOriginal - valorRecuperado,
+                'Valor Reconhecido com OH', 'valorReconhecidoComOhOriginal - valorRecuperado',
+                { label: 'Valor Reconhecido com OH', tipoLabel: tipo });
+
+            avaliarRegra('diferencaValor', 'correcao', indice,
+                difAtual, valorRecuperado,
+                'Diferença de Valor', 'valorRecuperado (equivale a valorReconhecidoComOhOriginal - valorReconhecidoComOH)',
+                { label: 'Diferença de Valor', tipoLabel: tipo });
+
+            avaliarRegra('valorLancamentoTotal', 'correcao', indice,
+                valorLancamentoTotalAtual, valorLancamentoTotalRaiz,
+                'Valor Lançamento Total', 'Raiz.valorLancamentoTotal (desfaz indexação nominal bruta)',
+                { label: 'Valor Lançamento Total', tipoLabel: tipo });
+
+            valorRecuperadoTotalAcumulado += valorRecuperado;
+
+            avaliarRegra('valorRecuperadoTotal', 'correcao', indice,
+                getValorCampo('valorRecuperadoTotal', 'correcao', indice), valorRecuperadoTotalAcumulado,
+                'Valor Recuperado Total', 'Soma de valorRecuperado de todas as correções RECUPERACAO até esta (inclusive)',
+                { label: 'Valor Recuperado Total', tipoLabel: tipo });
+
+            const calcRecup = document.getElementById('calc_' + indice + '_valorRecuperadoTotal');
+            if (calcRecup) calcRecup.value = formatarMoeda(valorRecuperadoTotalAcumulado);
+        }
+
+        anterior = {
+            valorReconhecidoComOH: vrComOHAtual,
+            valorLancamentoTotal: valorLancamentoTotalAtual
+        };
+    });
+}
+
+const CAMPOS_NOVA_CORRECAO_VALIDADOS = CAMPOS_CORRECAO_IGUAIS_A_RAIZ_TEXTO
+    .concat(CAMPOS_CORRECAO_IGUAIS_A_RAIZ_NUMERICO)
+    .concat([
+        'valorReconhecidoComOhOriginal', 'valorReconhecidoComOH',
+        'diferencaValor', 'valorLancamentoTotal', 'valorReconhecivel', 'valorRecuperadoTotal'
+    ]);
+
+function novaCorrecaoIncluida() {
+    const chk = document.getElementById('incluirNovaCorrecao');
+    return !!(chk && chk.checked);
+}
+
+function validarNovaCorrecao() {
+    if (!novaCorrecaoIncluida()) {
+        CAMPOS_NOVA_CORRECAO_VALIDADOS.forEach(function(campo) {
+            limparStatusCampo(campo, 'nova', null);
+        });
+        return;
+    }
+
+    const tipo = document.getElementById('nc_tipo').value;
+
+    // "Correção anterior" é a última correção existente (ordenada por data),
+    // ou a raiz quando ainda não há nenhuma correção — mesma regra do
+    // encadeamento usado em validarCorrecoes, recalculada a cada validação
+    // para refletir edições feitas nas correções já existentes.
+    const cardsExistentes = Array.from(document.querySelectorAll('.correcao-card'))
+        .sort((a, b) => obterTimestampDataCorrecao(a) - obterTimestampDataCorrecao(b));
+    const indiceAnterior = cardsExistentes.length
+        ? parseInt(cardsExistentes[cardsExistentes.length - 1].dataset.indice)
+        : null;
+
+    const anteriorVrComOH = indiceAnterior !== null
+        ? getValorCampo('valorReconhecidoComOH', 'correcao', indiceAnterior)
+        : getValorCampo('valorReconhecidoComOH', 'raiz');
+    const valorLancamentoTotalRaiz = getValorCampo('valorLancamentoTotal', 'raiz');
+
+    validarCamposIguaisARaiz('nova', null, tipo);
+
+    const valorComOhOriginal = getValorCampo('valorReconhecidoComOhOriginal', 'nova');
+    avaliarRegra('valorReconhecidoComOhOriginal', 'nova', null,
+        valorComOhOriginal, anteriorVrComOH,
+        'Valor Reconhecido com OH Original', 'Correção anterior (ou Raiz).valorReconhecidoComOH',
+        { label: 'Valor Reconhecido com OH Original', tipoLabel: tipo });
+
+    const vrComOHAtual = getValorCampo('valorReconhecidoComOH', 'nova');
+    const difAtual = getValorCampo('diferencaValor', 'nova');
+
+    if (tipo === 'RECUPERACAO') {
+        const valorRecuperado = getValorCampo('valorRecuperado', 'nova');
+
+        avaliarRegra('valorReconhecidoComOH', 'nova', null,
+            vrComOHAtual, valorComOhOriginal - valorRecuperado,
+            'Valor Reconhecido com OH', 'valorReconhecidoComOhOriginal - valorRecuperado',
+            { label: 'Valor Reconhecido com OH', tipoLabel: tipo });
+
+        avaliarRegra('diferencaValor', 'nova', null,
+            difAtual, valorRecuperado,
+            'Diferença de Valor', 'valorRecuperado (equivale a valorReconhecidoComOhOriginal - valorReconhecidoComOH)',
+            { label: 'Diferença de Valor', tipoLabel: tipo });
+
+        avaliarRegra('valorLancamentoTotal', 'nova', null,
+            getValorCampo('valorLancamentoTotal', 'nova'), valorLancamentoTotalRaiz,
+            'Valor Lançamento Total', 'Raiz.valorLancamentoTotal (desfaz indexação nominal bruta)',
+            { label: 'Valor Lançamento Total', tipoLabel: tipo });
+
+        const somaValorRecuperadoExistentes = somarValorRecuperadoCorrecoesExistentes();
+
+        avaliarRegra('valorRecuperadoTotal', 'nova', null,
+            getValorCampo('valorRecuperadoTotal', 'nova'), somaValorRecuperadoExistentes + valorRecuperado,
+            'Valor Recuperado Total', 'Soma de valorRecuperado de todas as correções RECUPERACAO (existentes + esta)',
+            { label: 'Valor Recuperado Total', tipoLabel: tipo });
+
+        avaliarRegra('valorReconhecivel', 'nova', null,
+            getValorCampo('valorReconhecivel', 'nova'), getValorCampo('valorLancamentoTotal', 'nova'),
+            'Valor Reconhecível', 'valorLancamentoTotal (da própria correção)',
+            { label: 'Valor Reconhecível', tipoLabel: tipo });
+    } else {
+        avaliarRegra('diferencaValor', 'nova', null,
+            difAtual, vrComOHAtual - valorComOhOriginal,
+            'Diferença de Valor', 'valorReconhecidoComOH - valorReconhecidoComOhOriginal',
+            { label: 'Diferença de Valor', tipoLabel: tipo });
+    }
+}
+
+function renderizarInconsistencias() {
+    const container = document.getElementById('listaInconsistencias');
+    if (inconsistencias.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-success"><i class="fas fa-check-circle fa-3x mb-3"></i><p class="mb-0">Nenhuma inconsistência</p></div>';
+        return;
+    }
+    let html = '';
+    inconsistencias.forEach(inc => {
+        html += '<div class="inconsistencia-item"><span class="campo-nome">' + inc.local + ' → ' + inc.label + '</span><div class="mt-1"><small>Atual: <span class="valor-atual">' + formatarValorPopover(inc.valorAtual, inc.formato) + '</span> | Esperado: <span class="valor-esperado">' + formatarValorPopover(inc.valorEsperado, inc.formato) + '</span></small></div><div><small class="text-muted">Regra: ' + inc.regra + '</small></div></div>';
+    });
+    container.innerHTML = html;
+}
+
+function atualizarBadgeInconsistencias() {
+    const badge = document.getElementById('countInconsistencias');
+    const btn = document.getElementById('tabInconsistenciasBtn');
+    if (inconsistencias.length > 0) {
+        badge.textContent = inconsistencias.length;
+        badge.style.display = 'inline';
+        btn.classList.add('text-danger');
+    } else {
+        badge.style.display = 'none';
+        btn.classList.remove('text-danger');
+    }
+}
+
+function setValorMonetarioNovaCorrecao(id, valor) {
+    const input = document.getElementById(id);
+
+    if (!input) return;
+
+    const valorNumerico = parseValor(valor);
+
+    // Mantém o valor bruto separado da máscara exibida na tela.
+    input.dataset.valorRaw = String(valorNumerico);
+    input.setAttribute('data-valor-raw', String(valorNumerico));
+
+    if (campoMonetarioEhPercentual(input)) {
+        input.value = formatarPercentual(valorNumerico);
+    } else if (campoMonetarioDeveExibirMoeda(input)) {
+        const moeda = input.dataset.moeda || detectarMoedaInput(input);
+        input.dataset.moeda = moeda;
+        input.value = formatarMoeda(valorNumerico, moeda);
+    } else {
+        input.value = formatarValor(valorNumerico);
+    }
+
+    atualizarTooltip(input);
+}
+
+function resincronizarValorRawNovaCorrecao() {
+    // getValorCampo() prioriza dataset.valorRaw, mas esse atributo só é
+    // atualizado no blur (configurarFormatacaoMonetariaInputs). Como
+    // calcularNovaCorrecao() roda a partir do evento 'change' — que dispara
+    // antes do blur terminar de atualizar dataset.valorRaw do campo recém
+    // editado — a validação (que usa getValorCampo) acaba lendo o valor
+    // antigo. Sincroniza aqui, antes de calcular/validar, só para os campos
+    // desta aba.
+    document.querySelectorAll('#tabNovaCorrecao .valor-monetario').forEach(function(input) {
+        input.dataset.valorRaw = String(parseValor(input.value));
+    });
+}
+
+function calcularNovaCorrecao() {
+    // Na carga inicial, preserva exatamente os valores recebidos do banco.
+    // O cálculo automático só passa a atuar após interação do usuário.
+    if (inicializandoTela) {
+        return;
+    }
+
+    resincronizarValorRawNovaCorrecao();
+    marcarClusterEditadoNovaCorrecao();
+
+    const tipo = document.getElementById('nc_tipo').value;
+
+    const vrExp = parseValor(
+        document.getElementById('nc_valorReconhecidoExploracao').value
+    );
+    const vrProd = parseValor(
+        document.getElementById('nc_valorReconhecidoProducao').value
+    );
+    const ohExp = parseValor(
+        document.getElementById('nc_overHeadExploracao').value
+    );
+    const ohProd = parseValor(
+        document.getElementById('nc_overHeadProducao').value
+    );
+
+    const vr = vrExp + vrProd;
+    const oh = ohExp + ohProd;
+    let vrComOH = vr + oh;
+
+    // Campos calculados usam a mesma máscara monetária dos demais inputs.
+    setValorMonetarioNovaCorrecao('nc_valorReconhecido', vr);
+    setValorMonetarioNovaCorrecao('nc_overHeadTotal', oh);
+    setValorMonetarioNovaCorrecao('nc_valorReconhecidoComOH', vrComOH);
+
+    const vrOriginal = parseValor(
+        document.getElementById('nc_valorReconhecidoComOhOriginal').value
+    );
+
+    if (tipo === 'RECUPERACAO') {
+        const valorRecuperado = parseValor(
+            document.getElementById('nc_valorRecuperado').value
+        );
+
+        vrComOH = vrOriginal - valorRecuperado;
+
+        setValorMonetarioNovaCorrecao(
+            'nc_valorReconhecidoComOH',
+            vrComOH
+        );
+
+        setValorMonetarioNovaCorrecao(
+            'nc_diferencaValor',
+            Math.abs(vrOriginal - vrComOH)
+        );
+
+        setValorMonetarioNovaCorrecao(
+            'nc_valorRecuperadoTotal',
+            somarValorRecuperadoCorrecoesExistentes() + valorRecuperado
+        );
+        marcarCampoEditadoNovaCorrecao('valorRecuperadoTotal');
+    } else {
+        setValorMonetarioNovaCorrecao(
+            'nc_diferencaValor',
+            Math.abs(vrOriginal - vrComOH)
+        );
+    }
+
+    validarTudo();
+}
+
+document.getElementById('incluirNovaCorrecao').addEventListener('change', function() {
+    document.getElementById('camposNovaCorrecao').style.display = this.checked ? 'block' : 'none';
+    camposEditadosNovaCorrecao.clear();
+
+    if (this.checked) {
+        /*
+         * Primeira abertura da Nova Correção:
+         * apenas ajusta a exibição conforme o tipo selecionado.
+         *
+         * IMPORTANTE:
+         * não recalcula os valores aqui, para preservar exatamente
+         * valorReconhecido, overHeadTotal, valorReconhecidoComOH e
+         * principalmente diferencaValor recebidos do banco.
+         */
+        onTipoCorrecaoChange(false);
+    }
+
+    atualizarResumo();
+    validarTudo();
+});
+
+function onTipoCorrecaoChange(recalcular = true) {
+    const tipo = document.getElementById('nc_tipo').value;
+    const isRecuperacao = tipo === 'RECUPERACAO';
+
+    document.getElementById('grpValorRecuperado').style.display =
+        isRecuperacao ? 'block' : 'none';
+
+    document.getElementById('grpValorRecuperadoTotal').style.display =
+        isRecuperacao ? 'block' : 'none';
+
+    /*
+     * Quando o usuário realmente altera o Tipo, o onchange do select
+     * chama esta função sem parâmetro e o recálculo acontece normalmente.
+     *
+     * Na primeira abertura, recebemos recalcular=false e mantemos os
+     * valores persistidos.
+     */
+    if (recalcular) {
+        // Regra de RECUPERACAO para valorLancamentoTotal é diferente das demais
+        // (== Raiz.valorLancamentoTotal, "desfaz indexação"), então o prefill
+        // (pensado para IPCA/IGPM/RETIFICACAO) precisa ser trocado aqui.
+        if (isRecuperacao) {
+            setValorMonetarioNovaCorrecao('nc_valorLancamentoTotal', obterValorRaizOriginalRegistro('valorLancamentoTotal'));
+            marcarCampoEditadoNovaCorrecao('valorLancamentoTotal');
+        } else {
+            setValorMonetarioNovaCorrecao('nc_valorLancamentoTotal', parseValor(valorLancamentoTotalPrefillOriginal));
+            camposEditadosNovaCorrecao.delete('valorLancamentoTotal');
+        }
+
+        calcularNovaCorrecao();
+    }
+}
+
+function atualizarResumo() {
+    const countRaiz = Object.keys(alteracoesRaiz).length;
+    const countCorr = Object.keys(alteracoesCorrecoes).length;
+    const incluirRet = document.getElementById('incluirNovaCorrecao') && document.getElementById('incluirNovaCorrecao').checked;
+    document.getElementById('countAlteracoesRaiz').textContent = countRaiz;
+    let html = '';
+    if (countRaiz > 0) html += '<p class="small mb-1"><strong>Raiz:</strong> ' + countRaiz + '</p>';
+    if (countCorr > 0) html += '<p class="small mb-1"><strong>Correções:</strong> ' + countCorr + '</p>';
+    if (incluirRet) {
+        const tipoNovo = document.getElementById('nc_tipo').value;
+        html += '<span class="badge bg-success">+ ' + tipoNovo + '</span>';
+    }
+    if (inconsistencias.length > 0) html += '<p class="small mb-1 text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i>' + inconsistencias.length + ' inconsistência(s)</p>';
+    document.getElementById('resumoAlteracoes').innerHTML = html || '<p class="text-muted small">Nenhuma alteração</p>';
+}
+
+function irParaValidacao() {
+    bootstrap.Modal.getInstance(document.getElementById('modalInconsistenciasSalvar')).hide();
+    new bootstrap.Tab(document.getElementById('tabInconsistenciasBtn')).show();
+}
+
+document.getElementById('checkConfirmaInconsistencias').addEventListener('change', function() {
+    const justificativa = document.getElementById('justificativaInconsistencias');
+    const btnSalvar = document.getElementById('btnSalvarComInconsistencias');
+    justificativa.disabled = !this.checked;
+    if (!this.checked) {
+        justificativa.value = '';
+        btnSalvar.disabled = true;
+    }
+});
+
+document.getElementById('justificativaInconsistencias').addEventListener('input', function() {
+    const checkbox = document.getElementById('checkConfirmaInconsistencias');
+    const btnSalvar = document.getElementById('btnSalvarComInconsistencias');
+    btnSalvar.disabled = !(checkbox.checked && this.value.trim().length >= 10);
+});
+
+function salvarComInconsistencias() {
+    const justificativa = document.getElementById('justificativaInconsistencias').value.trim();
+    if (justificativa.length < 10) {
+        alert('A justificativa deve ter pelo menos 10 caracteres.');
+        return;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalInconsistenciasSalvar')).hide();
+    executarSalvamento(justificativa);
+}
+
+function coletarDadosNovaCorrecao() {
+    if (!document.getElementById('incluirNovaCorrecao').checked) return null;
+
+    // Sempre enviados: não são valores financeiros sujeitos a arredondamento.
+    const dados = {
+        tipo: document.getElementById('nc_tipo').value,
+        subTipo: document.getElementById('nc_subTipo').value,
+        observacao: document.getElementById('nc_observacao').value,
+        ativo: document.getElementById('nc_ativo').value === 'true',
+        transferencia: document.getElementById('nc_transferencia').value === 'true'
+    };
+
+    // Campos monetários/inteiros: só entram no payload se o usuário realmente os editou
+    // (camposEditadosNovaCorrecao). Campos não tocados ficam de fora — o backend resolve o
+    // valor a partir do Decimal128 original (correção anterior/raiz), sem perder precisão.
+    // Os monetários são lidos como STRING (getValorCampoTexto), não Number, para preservar
+    // a precisão exata do que foi digitado/colado (Number do JS só tem ~15-17 dígitos
+    // significativos; o backend grava Decimal128 direto a partir da string).
+    const leitores = {
+        valorReconhecidoExploracao: () => getValorCampoTexto('valorReconhecidoExploracao', 'nova'),
+        valorReconhecidoProducao: () => getValorCampoTexto('valorReconhecidoProducao', 'nova'),
+        valorReconhecido: () => getValorCampoTexto('valorReconhecido', 'nova'),
+        valorReconhecidoComOH: () => getValorCampoTexto('valorReconhecidoComOH', 'nova'),
+        overHeadExploracao: () => getValorCampoTexto('overHeadExploracao', 'nova'),
+        overHeadProducao: () => getValorCampoTexto('overHeadProducao', 'nova'),
+        overHeadTotal: () => getValorCampoTexto('overHeadTotal', 'nova'),
+        valorReconhecidoComOhOriginal: () => getValorCampoTexto('valorReconhecidoComOhOriginal', 'nova'),
+        diferencaValor: () => absTextoDecimal(getValorCampoTexto('diferencaValor', 'nova')),
+        valorRecuperado: () => getValorCampoTexto('valorRecuperado', 'nova'),
+        valorRecuperadoTotal: () => getValorCampoTexto('valorRecuperadoTotal', 'nova'),
+        valorNaoReconhecido: () => getValorCampoTexto('valorNaoReconhecido', 'nova'),
+        quantidadeLancamento: () => converterValorInteiro(document.getElementById('nc_quantidadeLancamento').value) ?? 0,
+        valorLancamentoTotal: () => getValorCampoTexto('valorLancamentoTotal', 'nova'),
+        valorReconhecivel: () => getValorCampoTexto('valorReconhecivel', 'nova'),
+        valorNaoPassivelRecuperacao: () => getValorCampoTexto('valorNaoPassivelRecuperacao', 'nova'),
+        igpmAcumulado: () => getValorCampoTexto('igpmAcumulado', 'nova'),
+        igpmAcumuladoReais: () => getValorCampoTexto('igpmAcumuladoReais', 'nova')
+    };
+
+    Object.keys(leitores).forEach(function(campo) {
+        if (camposEditadosNovaCorrecao.has(campo)) {
+            dados[campo] = leitores[campo]();
+        }
+    });
+
+    return dados;
+}
+
+function salvarEdicao() {
+    if (inconsistencias.length > 0) {
+        document.getElementById('qtdInconsistenciasSalvar').textContent = inconsistencias.length;
+        document.getElementById('checkConfirmaInconsistencias').checked = false;
+        document.getElementById('justificativaInconsistencias').value = '';
+        document.getElementById('justificativaInconsistencias').disabled = true;
+        document.getElementById('btnSalvarComInconsistencias').disabled = true;
+        new bootstrap.Modal(document.getElementById('modalInconsistenciasSalvar')).show();
+        return;
+    }
+    executarSalvamento(null);
+}
+
+function executarSalvamento(justificativaInconsistencias) {
+    if (!validarInputsInteirosAntesSalvar()) {
+        return;
+    }
+
+    const alteracoesCorr = Object.entries(alteracoesCorrecoes).map(function(entry) { return { indice: parseInt(entry[0]), campos: entry[1] }; });
+    const dados = {
+        cco_id: ccoId,
+        alteracoes_raiz: alteracoesRaiz,
+        alteracoes_correcoes: alteracoesCorr,
+        nova_correcao: coletarDadosNovaCorrecao(),
+        observacoes: document.getElementById('observacoesGerais').value,
+        user_id: 'usuario_portal',
+        justificativa_inconsistencias: justificativaInconsistencias,
+        inconsistencias_ignoradas: justificativaInconsistencias ? inconsistencias : null
+    };
+    if (Object.keys(alteracoesRaiz).length === 0 && alteracoesCorr.length === 0 && !dados.nova_correcao) {
+        alert('Nenhuma alteração realizada.');
+        return;
+    }
+    const btn = document.getElementById('btnSalvar');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Salvando...';
+    btn.disabled = true;
+    fetch(`${window.API_PREFIX}/cco-editor/api/salvar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+            btn.disabled = false;
+            if (data.success) {
+                //alert('Salvo!\nSession: ' + data.session_id + '\nAlterações: ' + data.total_alteracoes);
+                const mensagem = 'Salvo!\nSession: ' + data.session_id + '\nAlterações: ' + data.total_alteracoes;
+                sessionStorage.setItem('alerta_sucesso', mensagem);
+
+                window.location.href = `${window.API_PREFIX}/cco-editor/revisar/${ccoId}`;
+            } else {
+                //alert('Erro: ' + (data.error || 'Desconhecido'));
+                window.exibirAlertaFlutuante('Erro: ' + (data.error || 'Desconhecido'), 'danger');
+            }
+        })
+        .catch(function(e) {
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+            btn.disabled = false;
+            window.exibirAlertaFlutuante('Erro: ' + e.message, 'danger');
+        });
+}
+
+function descartarRascunho() {
+    const btn = document.getElementById('btnConfirmarDescartarRascunho');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Descartando...';
+    btn.disabled = true;
+
+    fetch(`${window.API_PREFIX}/cco-editor/api/descartar-rascunho/${ccoId}`, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                window.location.href = `${window.API_PREFIX}/cco-editor/editar/${ccoId}?forcar_producao=1`;
+            } else {
+                btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i>Descartar Rascunho';
+                btn.disabled = false;
+                window.exibirAlertaFlutuante('Erro ao descartar rascunho: ' + (data.error || 'Desconhecido'), 'danger');
+            }
+        })
+        .catch(function(e) {
+            btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i>Descartar Rascunho';
+            btn.disabled = false;
+            window.exibirAlertaFlutuante('Erro: ' + e.message, 'danger');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    inicializarFormatacaoDatas();
+    configurarInputsInteiros();
+
+    // A tela nunca recalcula/sobrescreve valores: apenas lê o que veio do
+    // banco e pinta os campos conforme a validação das regras de negócio.
+    validarTudo();
+
+    // Padroniza a visualização inicial e registra o blur de todos os
+    // campos numéricos/monetários da tela.
+    configurarFormatacaoMonetariaInputs();
+
+    inicializandoTela = false;
+    atualizarResumo();
+});
+</script>
+{% endblock %}

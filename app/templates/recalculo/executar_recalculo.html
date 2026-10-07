@@ -1,0 +1,613 @@
+<!-- templates/recalculo/executar_recalculo.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1200px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-calculator me-2"></i>
+            Executar Recálculo de CCO
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('recalculo_ui.index_recalculo') }}">Recálculo</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('recalculo_ui.pesquisar_ccos') }}">Pesquisar</a></li>
+                <li class="breadcrumb-item active">Executar</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Informações da CCO -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-info-circle me-2"></i>
+                CCO Selecionada
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row" id="infoCco">
+                <div class="col-12 text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando informações da CCO...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulário de Recálculo -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-cogs me-2"></i>
+                Parâmetros de Recálculo
+            </h5>
+        </div>
+        <div class="card-body">
+            <form id="formRecalculo">
+                <input type="hidden" id="ccoId" name="cco_id" value="{{ cco_id }}">
+                
+                <input type="hidden" id="tipoRecalculo" name="tipo_recalculo" value="TRACK_PARTICIPATION">
+
+                <div class="row">
+                    <div class="col-lg-6 mb-4">
+                        <label class="form-label">Tipo de Recálculo</label>
+                        <div class="form-control bg-light">
+                            Track Participation (TP)
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-4">
+                        <label for="modoRecalculo" class="form-label">
+                            Modo de Recálculo *
+                            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 ms-1" data-bs-toggle="modal" data-bs-target="#modalAjudaRecalculo">
+                                <i class="fas fa-question-circle"></i>
+                            </button>
+                        </label>
+                        <select class="form-select" id="modoRecalculo" name="modo_recalculo" required>
+                            <option value="">Selecione o modo</option>
+                            <option value="CORRECAO_MONETARIA">Correção Completa (correção + atualiza raiz)</option>
+                            <option value="RAIZ">Somente Raiz (atualiza campos raiz sem criar correção)</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>Correção Completa:</strong> Cria nova correção RETIFICAÇÃO com rastreabilidade completa e atualiza os campos da raiz.<br>
+                            <strong>Somente Raiz:</strong> Atualiza apenas os campos financeiros da raiz, sem criar registro no histórico de correções.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parâmetros específicos para Track Participation -->
+                <div id="parametrosTP" style="display: block;">
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label for="tpOriginal" class="form-label">
+                                TP Original * (%)
+                                <span class="badge bg-danger ms-1" style="cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="right"
+                                    title="Este valor é crítico. Um TP Original incorreto tornará todo o recálculo inválido.">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Crítico
+                                </span>
+                            </label>
+                            <input type="number" class="form-control border-warning" id="tpOriginal" name="tp_original" 
+                                   step="0.001" min="0.001" max="100" placeholder="Ex: 60.407">
+                            <div class="form-text text-danger fw-semibold">
+                                <i class="fas fa-exclamation-circle me-1"></i>
+                                Verifique este valor diretamente na CCO antes de prosseguir. Um valor incorreto tornará todo o recálculo inválido.
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6 mb-3">
+                            <label for="tpCorrecao" class="form-label">TP Correção * (%)</label>
+                            <input type="number" class="form-control" id="tpCorrecao" name="tp_correcao" 
+                                   step="0.001" min="0.001" max="100" placeholder="Ex: 60.408">
+                            <div class="form-text">Novo Track Participation a ser aplicado</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <label class="form-label">Fator de Correção</label>
+                            <input type="text" class="form-control" id="fatorCorrecao" readonly>
+                            <div class="form-text">Calculado automaticamente (TP Correção / TP Original)</div>
+                        </div>
+                        
+                        <div class="col-lg-6 mb-3">
+                            <label class="form-label">Variação Percentual</label>
+                            <input type="text" class="form-control" id="variacaoPercentual" readonly>
+                            <div class="form-text">Percentual de variação entre os TPs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observações -->
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <label for="observacoes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="observacoes" name="observacoes" rows="3" 
+                                  placeholder="Descreva o motivo do recálculo ou observações relevantes..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" id="btnExecutarRecalculo">
+                                <i class="fas fa-play me-1"></i>Executar Recálculo
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="history.back()">
+                                <i class="fas fa-arrow-left me-1"></i>Voltar
+                            </button>
+                            <button type="button" class="btn btn-info" id="btnVisualizarCco">
+                                <i class="fas fa-eye me-1"></i>Visualizar CCO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div class="modal fade" id="modalConfirmacao" tabindex="-1" aria-labelledby="modalConfirmacaoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-warning">
+                <div class="modal-header bg-warning bg-opacity-10 border-warning">
+                    <h5 class="modal-title" id="modalConfirmacaoLabel">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Confirmar Execução do Recálculo
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-flex align-items-start gap-2 mb-4">
+                        <i class="fas fa-exclamation-circle fs-5 mt-1 flex-shrink-0"></i>
+                        <div>
+                            <strong>Atenção: o TP Original é um valor crítico.</strong><br>
+                            Certifique-se de que o valor informado foi verificado diretamente na CCO que será ajustada.
+                            Um TP Original incorreto tornará todo o recálculo inválido e os valores da CCO serão corrompidos.
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted mb-3">Resumo dos parâmetros informados:</h6>
+                    <table class="table table-bordered table-sm mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="fw-semibold bg-light" style="width:40%">Modo de Recálculo</td>
+                                <td id="confirmModo">—</td>
+                            </tr>
+                            <tr class="table-warning">
+                                <td class="fw-semibold bg-light">TP Original (%)</td>
+                                <td id="confirmTpOriginal" class="fw-bold text-danger fs-5">—</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-semibold bg-light">TP Correção (%)</td>
+                                <td id="confirmTpCorrecao" class="fw-semibold">—</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-semibold bg-light">Fator de Correção</td>
+                                <td id="confirmFator">—</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-semibold bg-light">Variação Percentual</td>
+                                <td id="confirmVariacao">—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="checkConfirmacaoTp">
+                        <label class="form-check-label fw-semibold" for="checkConfirmacaoTp">
+                            Confirmo que o <strong>TP Original</strong> foi verificado diretamente na CCO e está correto.
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancelar — Revisar Valores
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btnConfirmarExecucao" disabled>
+                        <i class="fas fa-play me-1"></i>Confirmar e Executar Recálculo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajuda -->
+    <div class="modal fade" id="modalAjudaRecalculo" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title"><i class="fas fa-book me-2"></i>Como funciona o Recálculo de Track Participation (TP)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">
+                        O recálculo aplica um novo <strong>Track Participation (TP)</strong> a uma CCO, ajustando os
+                        valores financeiros pelo <strong>fator de correção</strong> abaixo. Existem dois modos, com
+                        comportamentos bem diferentes:
+                    </p>
+
+                    <ul class="nav nav-tabs" id="tabsAjudaModoExecutar" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ajudaRaizExecutar" type="button">Somente Raiz</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ajudaCorrecaoExecutar" type="button">Correção Monetária</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content border border-top-0 p-3 mb-3">
+                        <div class="tab-pane fade show active" id="ajudaRaizExecutar">
+                            <p><strong>O que muda:</strong> só os campos financeiros da <strong>raiz</strong> da CCO.
+                            Cada um dos 12 campos abaixo é multiplicado diretamente pelo fator de correção — não há
+                            cálculo composto, é uma escala simples de cada campo:</p>
+                            <p class="font-monospace small bg-light p-2 rounded">campo_novo = campo_original × fator_correcao</p>
+                            <ul class="small">
+                                <li>valorLancamentoTotal, valorNaoReconhecido, valorReconhecido, valorReconhecivel</li>
+                                <li>valorNaoPassivelRecuperacao, valorReconhecidoExploracao, valorReconhecidoProducao</li>
+                                <li>valorRecusado, overHeadExploracao, overHeadProducao, overHeadTotal</li>
+                                <li><strong>valorReconhecidoComOH</strong> — também escalado diretamente pelo fator (não é
+                                    recalculado como "valorReconhecido + overHeadTotal")</li>
+                            </ul>
+                            <p class="small mb-1"><strong>O que NÃO muda:</strong></p>
+                            <ul class="small">
+                                <li>O array <code>correcoesMonetarias</code> — nenhuma correção existente é lida ou alterada,
+                                    nenhuma nova correção é criada.</li>
+                                <li><code>flgRecuperado</code> — permanece como estava.</li>
+                                <li><code>quantidadeLancamento</code> — apesar de aparecer no comparativo do resultado, este
+                                    modo não recalcula esse campo (limitação atual).</li>
+                            </ul>
+                        </div>
+                        <div class="tab-pane fade" id="ajudaCorrecaoExecutar">
+                            <p><strong>O que muda:</strong> a raiz <em>e</em>, se já existir histórico, uma nova
+                            correção — mas as duas são calculadas de forma <strong>independente</strong>, cada uma a
+                            partir do seu próprio valor anterior. Uma não é derivada da outra:</p>
+                            <ol class="small">
+                                <li><strong>Raiz:</strong> recalculada sozinha, exatamente como no modo Somente Raiz —
+                                    cada campo é multiplicado pelo fator de correção a partir do valor original da
+                                    própria raiz.</li>
+                                <li><strong>Sem nenhuma correção monetária no histórico:</strong> o recálculo termina
+                                    aqui — nenhuma correção é criada (mesmo resultado do modo Somente Raiz).</li>
+                                <li><strong>Com histórico:</strong> cria <strong>exatamente uma</strong> nova correção
+                                    do tipo <code>RETIFICACAO</code>, calculada a partir da <strong>última</strong>
+                                    correção existente (nunca da raiz) — as correções anteriores nunca são
+                                    recalculadas, não importa se são 2 ou 50. Os valores dessa nova correção
+                                    <strong>não</strong> são copiados para a raiz.</li>
+                            </ol>
+                            <p class="small mb-1"><strong>Cálculo de "Valor Reconhecido com OH" da nova correção — depende
+                                se a CCO já estava recuperada:</strong></p>
+                            <div class="bg-light p-2 rounded mb-2">
+                                <strong class="text-success">CCO recuperada (flgRecuperado = true):</strong>
+                                <div class="font-monospace small">
+                                    diferença = (último "Valor Reconhecido com OH" não-zero do histórico × fator) − esse mesmo valor<br>
+                                    nova correção.valorReconhecidoComOH = diferença<br>
+                                    nova correção.diferencaValor = diferença
+                                </div>
+                                <p class="small mb-0 mt-1">Essa diferença representa o "ganho" trazido pela correção de TP,
+                                que passa a ficar disponível como novo saldo recuperável da CCO.</p>
+                            </div>
+                            <div class="bg-light p-2 rounded mb-2">
+                                <strong class="text-secondary">CCO não recuperada:</strong>
+                                <div class="font-monospace small">
+                                    nova correção.valorReconhecidoComOH = valor atual (última correção/raiz) × fator<br>
+                                    nova correção.diferencaValor = 0
+                                </div>
+                                <p class="small mb-0 mt-1">
+                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                                    <code>diferencaValor</code> é sempre gravado como <code>0</code> neste caminho —
+                                    comportamento atual do sistema, não uma fórmula matemática (é uma limitação
+                                    conhecida, não uma regra de negócio).
+                                </p>
+                            </div>
+                            <p class="small mb-1"><strong>Mudança de status de recuperação:</strong> o <code>flgRecuperado</code>
+                            da raiz só volta de <code>true</code> para <code>false</code> quando <strong>as duas</strong>
+                            condições acontecem: a CCO já era recuperada <strong>e</strong> o novo
+                            "Valor Reconhecido com OH" calculado for <strong>positivo</strong>.</p>
+                            <p class="small mb-0"><code>valorRecuperado</code>/<code>valorRecuperadoTotal</code> são
+                            copiados da última correção <strong>sem</strong> aplicar o fator — eles não entram na conta
+                            de <code>valorReconhecidoComOH</code>/<code>diferencaValor</code> acima.</p>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6 class="text-primary"><i class="fas fa-calculator me-1"></i>Fator de Correção e Variação (iguais nos dois modos)</h6>
+                    <div class="font-monospace small bg-light p-2 rounded">
+                        fator_correcao = TP Correção ÷ TP Original<br>
+                        variação (%) = ((TP Correção − TP Original) ÷ TP Original) × 100
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="modalProcessando" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Processando...</span>
+                    </div>
+                    <h5>Executando Recálculo</h5>
+                    <p class="text-muted mb-0">Aguarde enquanto processamos os cálculos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+document.addEventListener('DOMContentLoaded', function() {
+    const ccoId = document.getElementById('ccoId').value;
+    const formRecalculo = document.getElementById('formRecalculo');
+    const parametrosTP = document.getElementById('parametrosTP');
+    const tpOriginal = document.getElementById('tpOriginal');
+    const tpCorrecao = document.getElementById('tpCorrecao');
+    const fatorCorrecao = document.getElementById('fatorCorrecao');
+    const variacaoPercentual = document.getElementById('variacaoPercentual');
+    let modalProcessando = new bootstrap.Modal(document.getElementById('modalProcessando'));
+    const modalConfirmacao = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
+    const checkConfirmacaoTp = document.getElementById('checkConfirmacaoTp');
+    const btnConfirmarExecucao = document.getElementById('btnConfirmarExecucao');
+
+    // Inicializar tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+
+    // Carregar informações da CCO
+    carregarInfoCco();
+
+    // Tipo e modo são fixos:
+    // tipo_recalculo = TRACK_PARTICIPATION
+    parametrosTP.style.display = 'block';
+    tpOriginal.required = true;
+    tpCorrecao.required = true;
+
+    // Calcular fator de correção automaticamente
+    function formatarNumeroBR(valor, maxCasasDecimais) {
+        if (valor === null || valor === undefined || isNaN(valor)) {
+            return '';
+        }
+        const casas = (maxCasasDecimais !== undefined && maxCasasDecimais !== null)
+            ? maxCasasDecimais
+            : 15;
+        const texto = Number(valor).toFixed(casas);
+        return texto
+            .replace(/\.?0+$/, '')
+            .replace('.', ',');
+    }
+
+    function calcularFator() {
+        const tp1 = parseFloat(tpOriginal.value);
+        const tp2 = parseFloat(tpCorrecao.value);
+        
+        if (tp1 && tp2 && tp1 > 0) {
+            const fator = tp2 / tp1;
+            const variacao = ((tp2 - tp1) / tp1) * 100;
+            
+            fatorCorrecao.value = formatarNumeroBR(fator, 6);
+            variacaoPercentual.value = formatarNumeroBR(variacao, 3) + '%';
+        } else {
+            fatorCorrecao.value = '';
+            variacaoPercentual.value = '';
+        }
+    }
+
+    tpOriginal.addEventListener('input', calcularFator);
+    tpCorrecao.addEventListener('input', calcularFator);
+
+    function resetarModalProcessando() {
+        const modalEl = document.getElementById('modalProcessando');
+
+        if (!modalEl) {
+            return;
+        }
+
+        try {
+            if (modalProcessando) {
+                modalProcessando.dispose();
+            }
+        } catch (erro) {
+            console.warn('Não foi possível descartar a instância anterior do modal:', erro);
+        }
+
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+        modalEl.removeAttribute('aria-modal');
+        modalEl.removeAttribute('role');
+
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        // Nova instância limpa para permitir executar outro recálculo após voltar.
+        modalProcessando = new bootstrap.Modal(modalEl);
+    }
+
+    window.addEventListener('pageshow', function() {
+        calcularFator();
+
+        // Também executa quando a página volta pelo histórico/bfcache.
+        resetarModalProcessando();
+    });
+    
+    // Submissão do formulário — abre modal de confirmação
+    formRecalculo.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (!formRecalculo.checkValidity()) {
+            formRecalculo.reportValidity();
+            return;
+        }
+        abrirModalConfirmacao();
+    });
+
+    // Habilitar botão confirmar somente quando checkbox marcado
+    checkConfirmacaoTp.addEventListener('change', function() {
+        btnConfirmarExecucao.disabled = !this.checked;
+    });
+
+    // Ao fechar o modal, resetar o checkbox
+    document.getElementById('modalConfirmacao').addEventListener('hidden.bs.modal', function() {
+        checkConfirmacaoTp.checked = false;
+        btnConfirmarExecucao.disabled = true;
+    });
+
+    // Confirmar e executar
+    btnConfirmarExecucao.addEventListener('click', function() {
+        modalConfirmacao.hide();
+        // Aguarda o modal fechar antes de abrir o de processamento
+        document.getElementById('modalConfirmacao').addEventListener('hidden.bs.modal', function handler() {
+            executarRecalculo();
+            this.removeEventListener('hidden.bs.modal', handler);
+        });
+    });
+
+    function abrirModalConfirmacao() {
+        const modoSelect = document.getElementById('modoRecalculo');
+        const modoLabel = modoSelect.options[modoSelect.selectedIndex]?.text || '—';
+
+        document.getElementById('confirmModo').textContent = modoLabel;
+        document.getElementById('confirmTpOriginal').textContent = tpOriginal.value ? tpOriginal.value + '%' : '—';
+        document.getElementById('confirmTpCorrecao').textContent = tpCorrecao.value ? tpCorrecao.value + '%' : '—';
+        document.getElementById('confirmFator').textContent = fatorCorrecao.value || '—';
+        document.getElementById('confirmVariacao').textContent = variacaoPercentual.value || '—';
+
+        modalConfirmacao.show();
+    }
+
+    // Botão visualizar CCO
+    document.getElementById('btnVisualizarCco').addEventListener('click', function() {
+        window.open(`${window.API_PREFIX}/cco-timeline/${ccoId}`, '_blank');
+    });
+
+    function carregarInfoCco() {
+        fetch(`${window.API_PREFIX}/recalculo/api/pesquisar-ccos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({id: ccoId})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.resultados.length > 0) {
+                exibirInfoCco(data.resultados[0]);
+            } else {
+                mostrarErro('CCO não encontrada');
+            }
+        })
+        .catch(error => {
+            window.exibirAlertaFlutuante('Erro ao carregar informações da CCO: ' + error.message, 'danger');
+        });
+    }
+
+    function exibirInfoCco(cco) {
+        document.getElementById('infoCco').innerHTML = `
+            <div class="col-lg-3 col-md-6 mb-2">
+                <strong>Contrato:</strong><br>
+                <span class="text-primary">${cco.contratoCpp}</span>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-2">
+                <strong>Campo:</strong><br>
+                <span class="text-primary">${cco.campo}</span>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-2">
+                <strong>Remessa:</strong><br>
+                <span class="badge bg-secondary">${cco.remessa}</span>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-2">
+                <strong>Fase:</strong><br>
+                <span class="badge bg-info">${cco.faseRemessa}</span>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-2">
+                <strong>Exercício/Período:</strong><br>
+                <span class="text-muted">${cco.exercicio}/${cco.periodo}</span>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-2">
+                <strong>Valor Reconhecido:</strong><br>
+                <span class="text-success fs-5">R$ ${formatarMoeda(cco.valorReconhecidoComOH)}</span>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-2">
+                <strong>Overhead Total:</strong><br>
+                <span class="text-info">R$ ${formatarMoeda(cco.overHeadTotal)}</span>
+            </div>
+            <div class="col-lg-4 col-md-12 mb-2">
+                <strong>Status:</strong><br>
+                ${cco.flgRecuperado ? '<span class="badge bg-success">Recuperado</span>' : '<span class="badge bg-warning">Não Recuperado</span>'}
+            </div>
+        `;
+    }
+
+    function executarRecalculo() {
+        // Validar formulário
+        if (!formRecalculo.checkValidity()) {
+            formRecalculo.reportValidity();
+            return;
+        }
+
+        // Mostrar modal de processamento
+        modalProcessando.show();
+
+        // Coletar dados do formulário
+        const formData = new FormData(formRecalculo);
+        const dados = {};
+        for (let [key, value] of formData.entries()) {
+            dados[key] = value;
+        }
+
+        // Fazer requisição
+        fetch(`${window.API_PREFIX}/recalculo/api/executar-recalculo`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(dados)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove o loading de forma síncrona antes da navegação.
+                // Não aguardamos animação nem hidden.bs.modal.
+                resetarModalProcessando();
+
+                window.location.href = `${window.API_PREFIX}/recalculo/resultado/${data.cache_key}`;
+            } else {
+                throw new Error('Erro no recálculo: ' + data.error);
+            }
+        })
+        .catch(error => {
+            resetarModalProcessando();
+            //mostrarErro('Erro na requisição: ' + error.message);
+            window.exibirAlertaFlutuante('Erro na requisição: ' + error.message, 'danger');
+        });
+    }
+
+    function formatarMoeda(valor) {
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(valor);
+    }
+
+    function mostrarErro(mensagem) {
+        alert(mensagem); // TODO: Implementar toast/modal mais elegante
+    }
+});
+</script>
+{% endblock %}

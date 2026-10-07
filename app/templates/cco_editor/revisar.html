@@ -1,0 +1,675 @@
+<!-- templates/cco_editor/revisar.html -->
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<style>
+    .diff-row-changed { background-color: #fff3cd !important; }
+    .valor-aumentou { color: #28a745; font-weight: 600; }
+    .valor-diminuiu { color: #dc3545; font-weight: 600; }
+    .timeline-item { padding: 10px; margin-bottom: 10px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff; }
+    .timeline-item.nova { border-left-color: #28a745; background: #f0fff0; }
+
+    .registro-alteracoes-container {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+
+    .registro-alteracoes-table {
+        width: 100%;
+        min-width: 850px;
+        table-layout: fixed;
+        margin-bottom: 0;
+        font-size: 0.78rem;
+        background-color: #fff;
+    }
+
+    .registro-alteracoes-table th {
+        background-color: #f8f9fa;
+        white-space: normal;
+        vertical-align: middle;
+    }
+
+    .registro-alteracoes-table td {
+        vertical-align: middle;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .registro-alteracoes-table th:nth-child(1),
+    .registro-alteracoes-table td:nth-child(1) { width: 14%; }
+
+    .registro-alteracoes-table th:nth-child(2),
+    .registro-alteracoes-table td:nth-child(2) { width: 20%; }
+
+    .registro-alteracoes-table th:nth-child(3),
+    .registro-alteracoes-table td:nth-child(3) { width: 18%; }
+
+    .registro-alteracoes-table th:nth-child(4),
+    .registro-alteracoes-table td:nth-child(4) { width: 18%; }
+
+    .registro-alteracoes-table th:nth-child(5),
+    .registro-alteracoes-table td:nth-child(5) { width: 16%; }
+
+    .registro-alteracoes-table th:nth-child(6),
+    .registro-alteracoes-table td:nth-child(6) { width: 14%; }
+
+    .registro-alteracoes-table .valor-registro {
+        font-family: 'Consolas', monospace;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        max-width: 0;
+    }
+
+    /* Nenhum conteúdo da tabela pode invadir a coluna vizinha. */
+    .registro-alteracoes-table td,
+    .registro-alteracoes-table th {
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    /* O badge de Tipo precisa respeitar os 14% reservados à coluna. */
+    .registro-alteracoes-table .tipo-registro {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .registro-alteracoes-table .tipo-registro .badge {
+        display: inline-block;
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        line-height: 1.15;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .registro-alteracoes-table .campo-registro,
+    .registro-alteracoes-table .detalhes-registro,
+    .registro-alteracoes-table .data-hora-registro {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+</style>
+
+<div class="container-fluid" style="max-width: 1400px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3"><i class="fas fa-eye me-2"></i>Revisar Edição</h1>
+            <p class="text-muted mb-0">Revise as alterações antes de promover para produção</p>
+        </div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('cco_editor.index') }}">Edição CCO</a></li>
+                <li class="breadcrumb-item active">Revisar</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Identificação -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="row align-items-center small">
+                <div class="col-auto"><strong>CCO:</strong> <code>{{ cco_corrigida._id }}</code></div>
+                <div class="col-auto"><strong>Contrato:</strong> {{ cco_corrigida.contratoCpp }}</div>
+                <div class="col-auto"><strong>Campo:</strong> {{ cco_corrigida.campo }}</div>
+                <div class="col-auto"><strong>Remessa:</strong> {{ cco_corrigida.remessa }}</div>
+                {% if sessao %}
+                <div class="col-auto"><strong>Session:</strong> <code class="small">{{ sessao.session_id }}</code></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if comparacao.success %}
+    <!-- Resumo -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-edit fa-2x text-warning mb-2"></i>
+                    <h4>{{ comparacao.resumo.total_campos_alterados }}</h4>
+                    <small class="text-muted">Campos Alterados</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-dollar-sign fa-2x text-{{ 'success' if comparacao.resumo.impacto_financeiro >= 0 else 'danger' }} mb-2"></i>
+                    <h4><span class="valor-brl" data-valor="{{ comparacao.resumo.impacto_financeiro|abs }}"></span></h4>
+                    <small class="text-muted">Impacto Financeiro (valorReconhecidoComOH)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-plus-circle fa-2x text-success mb-2"></i>
+                    <h4>{{ comparacao.resumo.novas_correcoes }}</h4>
+                    <small class="text-muted">Novas Correções</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-history fa-2x text-info mb-2"></i>
+                    <h4>{{ comparacao.analise_correcoes.qtd_original }} → {{ comparacao.analise_correcoes.qtd_corrigida }}</h4>
+                    <small class="text-muted">Total Correções</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alterações Detalhadas -->
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Campos Alterados -->
+            {% if comparacao.diferencas_raiz %}
+            <div class="card mb-4">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-list me-2"></i>Campos Alterados</h6></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Campo</th>
+                                    <th>Original</th>
+                                    <th></th>
+                                    <th>Novo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# Primeiro: todos os campos normais #}
+                                {% for diff in comparacao.diferencas_raiz %}
+                                    {% if diff.label != 'registro_alteracoes' and diff.campo != 'registro_alteracoes' %}
+                                    <tr class="diff-row-changed">
+                                        <td><strong>{{ diff.label }}</strong></td>
+                                        <td>
+                                            {% if diff.is_monetario %}
+                                                <span class="valor-brl" data-valor="{{ diff.valor_original or 0 }}"></span>
+                                            {% else %}
+                                                {{ diff.valor_original }}
+                                            {% endif %}
+                                        </td>
+                                        <td><i class="fas fa-arrow-right text-muted"></i></td>
+                                        <td class="{% if diff.diferenca_numerica and diff.diferenca_numerica > 0 %}valor-aumentou{% elif diff.diferenca_numerica and diff.diferenca_numerica < 0 %}valor-diminuiu{% endif %}">
+                                            {% if diff.is_monetario %}
+                                                <span class="valor-brl" data-valor="{{ diff.valor_corrigido or 0 }}"></span>
+                                            {% else %}
+                                                {{ diff.valor_corrigido }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {# Sempre por último: Registro de Alterações #}
+                                {% for diff in comparacao.diferencas_raiz %}
+                                    {% if diff.label == 'registro_alteracoes' or diff.campo == 'registro_alteracoes' %}
+                                    <tr class="diff-row-changed">
+                                        <td colspan="4">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <strong class="me-2">Registro de Alterações</strong>
+                                                <span class="badge bg-info">
+                                                    {{ diff.valor_corrigido|length if diff.valor_corrigido else 0 }} registro(s)
+                                                </span>
+                                            </div>
+
+                                            {% if diff.valor_corrigido %}
+                                            <div class="registro-alteracoes-container">
+                                                <table class="table table-sm table-bordered registro-alteracoes-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Tipo</th>
+                                                            <th>Campo / Correção</th>
+                                                            <th>Valor Anterior</th>
+                                                            <th>Valor Novo</th>
+                                                            <th>Detalhes</th>
+                                                            <th>Data/Hora</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for alt in diff.valor_corrigido %}
+                                                        <tr>
+                                                            <td class="tipo-registro">
+                                                                <span class="badge bg-{{ 'success' if alt.tipo in ['NOVA_CORRECAO', 'NOVA_RETIFICACAO'] else 'warning' }}">
+                                                                    {{ alt.tipo or '-' }}
+                                                                </span>
+                                                            </td>
+                                                            <td class="campo-registro"
+                                                                data-campo-registro="{{ alt.campo or '' }}"
+                                                                data-label-registro="{{ alt.label or '' }}">
+                                                                {% if alt.label %}
+                                                                    {{ alt.label }}
+                                                                {% elif alt.campo %}
+                                                                    {{ alt.campo }}
+                                                                {% elif alt.indice_correcao is defined %}
+                                                                    Correção #{{ alt.indice_correcao }}
+                                                                {% else %}
+                                                                    -
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="valor-registro valor-registro-anterior"
+                                                                data-campo-registro="{{ alt.campo or '' }}"
+                                                                data-label-registro="{{ alt.label or '' }}">
+                                                                {% if alt.valor_antigo is defined %}
+                                                                    {{ alt.valor_antigo }}
+                                                                {% elif alt.valor_oh_anterior is defined %}
+                                                                    {{ alt.valor_oh_anterior }}
+                                                                {% else %}
+                                                                    -
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="valor-registro valor-registro-novo"
+                                                                data-campo-registro="{{ alt.campo or '' }}"
+                                                                data-label-registro="{{ alt.label or '' }}">
+                                                                {% if alt.valor_novo is defined %}
+                                                                    {{ alt.valor_novo }}
+                                                                {% elif alt.valor_oh_novo is defined %}
+                                                                    {{ alt.valor_oh_novo }}
+                                                                {% else %}
+                                                                    -
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="detalhes-registro">
+                                                                {% if alt.motivo %}
+                                                                    {{ alt.motivo }}
+                                                                {% elif alt.observacao %}
+                                                                    {{ alt.observacao }}
+                                                                {% elif alt.diferenca is defined %}
+                                                                    Diferença: {{ alt.diferenca }}
+                                                                {% else %}
+                                                                    -
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="data-hora-registro">
+                                                                {{ alt.timestamp[:19] if alt.timestamp else '-' }}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {% else %}
+                                            <span class="text-muted">Nenhum registro</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Novas Correções -->
+            {% if comparacao.analise_correcoes.correcoes_novas %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Novas Correções Adicionadas</h6>
+                </div>
+                <div class="card-body">
+                    {% for corr in comparacao.analise_correcoes.correcoes_novas %}
+                    <div class="timeline-item nova">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <span class="badge bg-success">{{ corr.tipo }}</span>
+                                <span class="badge bg-secondary">{{ corr.subTipo }}</span>
+                                <small class="text-muted ms-2">{{ corr.dataCorrecao }}</small>
+                            </div>
+                            <span class="valor-aumentou">+<span class="valor-brl" data-valor="{{ corr.diferencaValor or 0 }}"></span></span>
+                        </div>
+                        <div class="mt-2 small">
+                            <strong>Valor c/ OH (valorReconhecidoComOH):</strong> <span class="valor-brl" data-valor="{{ corr.valorReconhecidoComOH or 0 }}"></span>
+                            {% if corr.observacao %}<br><em>{{ corr.observacao }}</em>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Registro de Alterações -->
+            {% if sessao and sessao.registro_alteracoes %}
+            <div class="card mb-4">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-history me-2"></i>Histórico de Alterações</h6></div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for alt in sessao.registro_alteracoes %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="badge bg-{{ 'success' if alt.tipo in ['NOVA_CORRECAO' 'NOVA_RETIFICACAO'] else 'warning' }}">{{ alt.tipo }}</span>
+                                    <strong class="ms-2">{{ alt.label or alt.campo }}</strong>
+                                    {% if alt.valor_antigo is defined %}
+                                    <small class="text-muted">{{ alt.valor_antigo }} → {{ alt.valor_novo }}</small>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ alt.timestamp[:19] if alt.timestamp else '' }}</small>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Ações -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-rocket me-2"></i>Ações</h6></div>
+                <div class="card-body">
+                    {% if sessao and sessao.observacoes %}
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Observações da Edição:</label>
+                        <p class="small">{{ sessao.observacoes }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="alert alert-warning small">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        A promoção aplicará as alterações na CCO de produção. Esta ação não pode ser desfeita.
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('ipca_promocao.detalhar_correcao', cco_id=cco_corrigida._id) }}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-rocket me-2"></i>Ir para Promoção
+                        </a>
+                        <a href="{{ url_for('cco_editor.editar_cco', cco_id=cco_corrigida._id) }}" 
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-edit me-2"></i>Editar Novamente
+                        </a>
+                        <button class="btn btn-outline-danger" onclick="descartarEdicao()">
+                            <i class="fas fa-trash me-2"></i>Descartar Edição
+                        </button>
+                        <a href="{{ url_for('cco_editor.index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Voltar
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Impacto Financeiro -->
+            <div class="card mt-3">
+                <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Impacto Financeiro</h6></div>
+                <div class="card-body">
+                    <p class="small text-muted">Valores considerados: <code>valorReconhecidoComOH</code> da raiz (Valor Inicial) e da última correção monetária ativa, ou da raiz se não houver correções (Valor Final).</p>
+                    <dl class="small mb-0">
+                        <dt>Valor Inicial (raiz.valorReconhecidoComOH):</dt>
+                        <dd><span class="valor-brl" data-valor="{{ comparacao.impacto_financeiro.valor_inicial or 0 }}"></span></dd>
+                        <dt>Valor Final Original (valorReconhecidoComOH):</dt>
+                        <dd><span class="valor-brl" data-valor="{{ comparacao.impacto_financeiro.valor_final_original or 0 }}"></span></dd>
+                        <dt>Valor Final Corrigido (valorReconhecidoComOH):</dt>
+                        <dd class="h5 text-success"><span class="valor-brl" data-valor="{{ comparacao.impacto_financeiro.valor_final_corrigido or 0 }}"></span></dd>
+                        <hr>
+                        <dt>Diferença Total:</dt>
+                        <dd class="h4 {% if comparacao.impacto_financeiro.diferenca_total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if comparacao.impacto_financeiro.diferenca_total >= 0 %}+{% endif %}<span class="valor-brl" data-valor="{{ comparacao.impacto_financeiro.diferenca_total or 0 }}"></span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-warning">
+        <h5><i class="fas fa-exclamation-triangle me-2"></i>Sem alterações para revisar</h5>
+        <p>{{ comparacao.error or 'Não foram encontradas diferenças entre a CCO original e corrigida.' }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+function registroNormalizarTexto(valor) {
+    return String(valor ?? '').trim();
+}
+
+function registroParseNumero(valor) {
+    let texto = registroNormalizarTexto(valor);
+
+    if (!texto || texto === '-') return null;
+
+    texto = texto
+        .replace(/R\$\s*/gi, '')
+        .replace(/US\$\s*/gi, '')
+        .replace(/USD\s*/gi, '')
+        .replace(/%/g, '')
+        .replace(/\s/g, '');
+
+    const ultimaVirgula = texto.lastIndexOf(',');
+    const ultimoPonto = texto.lastIndexOf('.');
+
+    if (ultimaVirgula !== -1 && ultimoPonto !== -1) {
+        if (ultimaVirgula > ultimoPonto) {
+            texto = texto.replace(/\./g, '').replace(',', '.');
+        } else {
+            texto = texto.replace(/,/g, '');
+        }
+    } else if (ultimaVirgula !== -1) {
+        texto = texto.replace(',', '.');
+    }
+
+    const numero = Number(texto);
+
+    return Number.isFinite(numero) ? numero : null;
+}
+
+function registroCampoEhData(campo, label) {
+    const referencia = (
+        registroNormalizarTexto(campo)
+        + ' '
+        + registroNormalizarTexto(label)
+    ).toLowerCase();
+
+    return (
+        referencia.includes('data')
+        || referencia.includes('createdat')
+        || referencia.includes('updatedat')
+    );
+}
+
+function registroCampoEhPercentual(campo, label) {
+    const referencia = (
+        registroNormalizarTexto(campo)
+        + ' '
+        + registroNormalizarTexto(label)
+    ).toLowerCase();
+
+    return (
+        referencia.includes('%')
+        || referencia.includes('percentual')
+        || referencia.includes('igpmacumulado')
+        || referencia.includes('ipcaacumulado')
+        || referencia.includes('taxacorrecao')
+    );
+}
+
+function registroCampoEhMonetario(campo, label) {
+    const referencia = (
+        registroNormalizarTexto(campo)
+        + ' '
+        + registroNormalizarTexto(label)
+    ).toLowerCase();
+
+    if (registroCampoEhPercentual(campo, label)) return false;
+
+    return (
+        referencia.includes('valor')
+        || referencia.includes('overhead')
+        || referencia.includes('diferen')
+        || referencia.includes('recuperado')
+        || referencia.includes('reconhecido')
+        || referencia.includes('reconhecivel')
+        || referencia.includes('reconhecível')
+    );
+}
+
+function registroFormatarMoeda(valor) {
+    const numero = registroParseNumero(valor);
+
+    if (numero === null) return valor;
+
+    return 'R$ ' + numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function registroFormatarPercentual(valor) {
+    const numero = registroParseNumero(valor);
+
+    if (numero === null) return valor;
+
+    return numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }) + ' %';
+}
+
+function registroFormatarData(valor, campo = '') {
+    const texto = registroNormalizarTexto(valor);
+
+    if (!texto || texto === '-') return texto;
+
+    // Já está em dd/MM/yyyy HH:mm:ss.
+    if (/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/.test(texto)) {
+        return texto;
+    }
+
+    // ISO sem timezone: preserva a hora literal.
+    const matchSemTimezone = texto.match(
+        /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/
+    );
+
+    if (matchSemTimezone) {
+        const [, ano, mes, dia, hora, minuto, segundo] = matchSemTimezone;
+        return `${dia}/${mes}/${ano} ${hora}:${minuto}:${segundo}`;
+    }
+
+    // ISO com timezone explícito: respeita o offset e exibe em Brasília.
+    if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(texto)) {
+        const textoNormalizado = texto.replace(
+            /([+-]\d{2})(\d{2})$/,
+            '$1:$2'
+        );
+
+        const data = new Date(textoNormalizado);
+
+        if (!Number.isNaN(data.getTime())) {
+            const partes = new Intl.DateTimeFormat('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            }).formatToParts(data).reduce(function(acc, parte) {
+                acc[parte.type] = parte.value;
+                return acc;
+            }, {});
+
+            return `${partes.day}/${partes.month}/${partes.year} ${partes.hour}:${partes.minute}:${partes.second}`;
+        }
+    }
+
+    return texto;
+}
+
+function formatarRegistroAlteracoes() {
+    document
+        .querySelectorAll('.registro-alteracoes-table .valor-registro')
+        .forEach(function(celula) {
+            const campo = celula.dataset.campoRegistro || '';
+            const label = celula.dataset.labelRegistro || '';
+            const valorOriginal = registroNormalizarTexto(celula.textContent);
+
+            if (!valorOriginal || valorOriginal === '-') return;
+
+            let valorFormatado = valorOriginal;
+
+            if (registroCampoEhData(campo, label)) {
+                valorFormatado = registroFormatarData(valorOriginal, campo);
+            } else if (registroCampoEhPercentual(campo, label)) {
+                valorFormatado = registroFormatarPercentual(valorOriginal);
+            } else if (registroCampoEhMonetario(campo, label)) {
+                valorFormatado = registroFormatarMoeda(valorOriginal);
+            }
+
+            celula.textContent = valorFormatado;
+            celula.title = valorOriginal;
+        });
+
+    // Data/Hora do próprio registro também é padronizada.
+    document
+        .querySelectorAll('.registro-alteracoes-table .data-hora-registro')
+        .forEach(function(celula) {
+            const valorOriginal = registroNormalizarTexto(celula.textContent);
+
+            if (!valorOriginal || valorOriginal === '-') return;
+
+            const valorFormatado = registroFormatarData(valorOriginal);
+
+            celula.textContent = valorFormatado;
+            celula.title = valorOriginal;
+        });
+}
+
+function descartarEdicao() {
+    if (!confirm('Deseja realmente descartar esta edição? Esta ação não pode ser desfeita.')) return;
+    
+    fetch(`${window.API_PREFIX}/cco-editor/api/descartar/{{ cco_corrigida._id }}`, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Edição descartada com sucesso!');
+                window.location.href = '{{ url_for("cco_editor.index") }}';
+            } else {
+                alert('Erro: ' + (data.error || 'Erro desconhecido'));
+            }
+        })
+        .catch(e => alert('Erro: ' + e.message));
+}
+
+function formatarValoresBRL() {
+    document.querySelectorAll('.valor-brl').forEach(function(el) {
+        const numero = registroParseNumero(el.dataset.valor);
+        el.textContent = numero === null ? (el.dataset.valor || '-') : registroFormatarMoeda(numero);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    formatarRegistroAlteracoes();
+    formatarValoresBRL();
+
+    const msgSalva = sessionStorage.getItem('alerta_sucesso');
+    if (msgSalva) {
+        window.exibirAlertaFlutuante(msgSalva, 'success');
+        sessionStorage.removeItem('alerta_sucesso');
+    }
+});
+</script>
+{% endblock %}

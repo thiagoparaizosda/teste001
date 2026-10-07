@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .audit-filter-form {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: nowrap;
+    }
+
+    .audit-filter-form .filter-date {
+        width: 140px;
+        min-width: 140px;
+    }
+
+    @media (max-width: 992px) {
+        .audit-filter-form {
+            width: 100%;
+            justify-content: flex-end;
+            gap: 0.35rem;
+        }
+
+        .audit-filter-form .filter-date {
+            width: 130px;
+            min-width: 130px;
+        }
+    }
+
+    #tabelaLogs_wrapper {
+        padding: 0.75rem;
+    }
+
+    #tabelaLogs_wrapper .row:first-child {
+        margin-bottom: 0.75rem;
+        align-items: center;
+    }
+
+    #tabelaLogs_wrapper .row:last-child {
+        margin-top: 0.75rem;
+        align-items: center;
+    }
+
+    #tabelaLogs_wrapper .dataTables_length,
+    #tabelaLogs_wrapper .dataTables_filter,
+    #tabelaLogs_wrapper .dataTables_info,
+    #tabelaLogs_wrapper .dataTables_paginate {
+        margin-bottom: 0;
+    }
+
+    #tabelaLogs_wrapper .dataTables_filter input {
+        margin-left: 0.5rem;
+        min-width: 220px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1600px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-history me-2"></i>
+            Logs de Auditoria
+        </h1>
+    </div>
+
+    <div id="containerLogs" style="display: none;">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Auditoria de Ações do Sistema
+                </h5>
+                <form class="audit-filter-form" method="GET" action="{{ url_for('audit.search') }}">
+                    <input
+                        id="filtroDataInicio"
+                        type="{{ 'date' if filtro_data_inicio else 'text' }}"
+                        class="form-control form-control-sm filter-date"
+                        name="data_inicio"
+                        value="{{ filtro_data_inicio }}"
+                        placeholder="Data inicial"
+                        aria-label="Data inicial"
+                        title="Data inicial"
+                        onclick="if(this.type !== 'date'){ this.type = 'date'; } this.showPicker && this.showPicker()"
+                        onfocus="if(this.type !== 'date'){ this.type = 'date'; } this.showPicker && this.showPicker()"
+                        onblur="if(!this.value){ this.type = 'text'; }"
+                    >
+                    <input
+                        id="filtroDataFim"
+                        type="{{ 'date' if filtro_data_fim else 'text' }}"
+                        class="form-control form-control-sm filter-date"
+                        name="data_fim"
+                        value="{{ filtro_data_fim }}"
+                        placeholder="Data final"
+                        aria-label="Data final"
+                        title="Data final"
+                        onclick="if(this.type !== 'date'){ this.type = 'date'; } this.showPicker && this.showPicker()"
+                        onfocus="if(this.type !== 'date'){ this.type = 'date'; } this.showPicker && this.showPicker()"
+                        onblur="if(!this.value){ this.type = 'text'; }"
+                    >
+                    <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('audit.search') }}">Limpar</a>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="tabelaLogs">
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Usuário</th>
+                                <th>Ação</th>
+                                <th>Recurso</th>
+                                <th>Status</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="corpoTabelaLogs">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensagem de nenhum resultado -->
+    <div id="nenhumLog" class="alert alert-success text-center" style="display: none;">
+        <i class="fas fa-check-circle me-2"></i>
+        Nenhum log de auditoria encontrado.
+    </div>
+    
+</div>
+
+<script id="audit-logs-data" type="application/json">{{ logs_json | tojson | safe }}</script>
+
+<script>
+
+    const corpoTabela = document.getElementById('corpoTabelaLogs');
+    const containerLogs = document.getElementById('containerLogs');
+    const nenhumLog = document.getElementById('nenhumLog');
+
+    const logsDataElement = document.getElementById('audit-logs-data');
+    const logs = logsDataElement ? JSON.parse(logsDataElement.textContent || '[]') : [];
+
+    function formatarDataHoraLog(dataString) {
+        const data = new Date(dataString);
+        if (Number.isNaN(data.getTime())) {
+            return dataString || '-';
+        }
+
+        return data.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function exibirLog() {
+        if (logs.length === 0) {
+            nenhumLog.style.display = 'block';
+            containerLogs.style.display = 'none';
+            return;
+        }
+        
+        corpoTabela.innerHTML = '';
+
+        logs.forEach(log => {
+            const linha = document.createElement('tr');
+            linha.innerHTML = `
+                <td data-order="${log.timestamp}">${formatarDataHoraLog(log.timestamp)}</td>
+                <td>${log.username}</td>
+                <td>${log.action}</td>
+                <td>${log.resource_id != null ? `${log.resource_type}: ${log.resource_id}` : log.resource_type}</td>
+                <td>
+                    <span class="badge bg-${log.status == 'SUCCESS' ? 'success' : 'danger'}">
+                        ${log.status}
+                    </span>
+                </td>
+                <td>${log.ip_address}</td>
+            `;
+            corpoTabela.appendChild(linha);
+        });
+
+        containerLogs.style.display = 'block';
+        nenhumLog.style.display = 'none';
+
+        if (window.jQuery && jQuery.fn.DataTable) {
+            jQuery('#tabelaLogs').DataTable({
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[0, 'desc']],
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+                }
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', exibirLog);
+
+</script>
+{% endblock %}

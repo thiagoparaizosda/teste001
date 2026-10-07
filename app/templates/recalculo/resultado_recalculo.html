@@ -1,0 +1,1314 @@
+<!-- templates/recalculo/resultado_recalculo.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% macro formatar_decimal_ptbr(valor, casas=6) -%}
+    {%- set numero = valor|float -%}
+    {%- if casas == 15 -%}
+        {%- set texto = "{:,.15f}".format(numero) -%}
+    {%- elif casas == 10 -%}
+        {%- set texto = "{:,.10f}".format(numero) -%}
+    {%- elif casas == 6 -%}
+        {%- set texto = "{:,.6f}".format(numero) -%}
+    {%- elif casas == 3 -%}
+        {%- set texto = "{:,.3f}".format(numero) -%}
+    {%- elif casas == 2 -%}
+        {%- set texto = "{:,.2f}".format(numero) -%}
+    {%- elif casas == 1 -%}
+        {%- set texto = "{:,.1f}".format(numero) -%}
+    {%- else -%}
+        {%- set texto = "{:,.6f}".format(numero) -%}
+    {%- endif -%}
+    {%- set texto = texto.replace(",", "X").replace(".", ",").replace("X", ".") -%}
+    {%- if "," in texto -%}
+        {%- set texto = texto.rstrip("0").rstrip(",") -%}
+    {%- endif -%}
+    {{- "0" if texto in ["", "-0"] else texto -}}
+{%- endmacro %}
+
+{% macro linha_comparativo(campo, dados, labels_campos_comparativo, resultado) %}
+{% set campo_limpo = campo.replace('correcao_', '').replace('cco_', '') %}
+<tr>
+    <td>
+        <strong>{{ labels_campos_comparativo.get(campo_limpo, campo_limpo) }}</strong>
+    </td>
+    <td class="text-end text-muted position-relative">
+        {% if campo in ['correcao_flgRecuperado'] %}
+            <span class="text-muted">{{ 'SIM' if dados.valor_original else 'NÃO' }}</span>
+        {% elif 'quantidade' in campo %}
+            <span class="text-muted">{{ dados.valor_original }}</span>
+        {% elif dados.valor_original != 0 %}
+            <span class="valor-calculado"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                data-bs-html="true"
+                title="<strong>Valor completo</strong><br>{{ formatar_decimal_ptbr(dados.valor_original, 15) }}<br><br><strong>Valor original</strong><br>Sem aplicação do fator de correção<br><small class='text-muted'>Base para o cálculo</small><br><br><strong>Valor Original sem TP original</strong><br>{{ formatar_decimal_ptbr(dados.valor_original, 15) }} / {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_original, 15) }}<br><strong>= {{ formatar_decimal_ptbr(dados.valor_original / resultado.metadata_recalculo.tp_original, 15) }}</strong>">
+                {{ formatar_decimal_ptbr(dados.valor_original, 6) }}
+            </span>
+        {% else %}
+            <span class="text-muted">{{ formatar_decimal_ptbr(0, 2) }}</span>
+        {% endif %}
+    </td>
+    <td class="text-end text-primary fw-bold position-relative">
+        {% if campo in ['correcao_flgRecuperado'] %}
+            <span class="text-muted">{{ 'SIM' if dados.valor_recalculado else 'NÃO' }}</span>
+        {% elif 'quantidade' in campo %}
+            <span class="text-muted">{{ dados.valor_recalculado }}</span>
+        {% elif dados.valor_recalculado != 0 %}
+            {% set valor_sem_tp = (dados.valor_original / resultado.metadata_recalculo.tp_original) if resultado.metadata_recalculo.tp_original != 0 else 0 %}
+            {% set valor_com_novo_tp = valor_sem_tp * resultado.metadata_recalculo.tp_correcao if valor_sem_tp != 0 else 0 %}
+            <span class="valor-calculado"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                data-bs-html="true"
+                title="<strong>Valor completo</strong><br>{{ formatar_decimal_ptbr(dados.valor_recalculado, 15) }}<br><br><strong>Cálculo aplicado</strong><br/>{{ formatar_decimal_ptbr(dados.valor_original, 15) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 15) }}<br/><strong>= {{ formatar_decimal_ptbr(dados.valor_recalculado, 15) }}</strong><br/><br/><strong>Cálculo com valor original</strong><br/>{{ formatar_decimal_ptbr(valor_sem_tp, 15) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_correcao, 15) }}<br/><strong>= {{ formatar_decimal_ptbr(valor_com_novo_tp, 15) }}</strong>">
+                {{ formatar_decimal_ptbr(dados.valor_recalculado, 6) }}
+            </span>
+        {% else %}
+            <span class="text-muted">{{ formatar_decimal_ptbr(0, 2) }}</span>
+        {% endif %}
+    </td>
+    <td class="text-end {% if dados.diferenca > 0 %}text-success{% elif dados.diferenca < 0 %}text-danger{% else %}text-muted{% endif %} position-relative">
+        {% if dados.valor_recalculado == true or dados.valor_recalculado == false %}
+            <span class="text-muted">-</span>
+        {% elif dados.diferenca != 0 %}
+            <span class="valor-calculado"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                data-bs-html="true"
+                title="<strong>Valor completo</strong><br>{% if dados.diferenca > 0 %}+{% endif %}{{ formatar_decimal_ptbr(dados.diferenca, 15) }}<br><br><strong>Diferença calculada</strong><br>{{ formatar_decimal_ptbr(dados.valor_recalculado, 15) }} - {{ formatar_decimal_ptbr(dados.valor_original, 15) }}<br><strong>= {% if dados.diferenca > 0 %}+{% endif %}{{ formatar_decimal_ptbr(dados.diferenca, 15) }}</strong>">
+                {% if dados.diferenca > 0 %}+{% endif %}{{ formatar_decimal_ptbr(dados.diferenca, 6) }}
+            </span>
+        {% else %}
+            <span class="text-muted">{{ formatar_decimal_ptbr(0, 2) }}</span>
+        {% endif %}
+    </td>
+    <td class="text-center">
+        {% if campo in ['correcao_flgRecuperado'] %}
+            <span class="text-muted">-</span>
+        {% elif dados.diferenca != 0 %}
+        <span class="badge {% if dados.percentual_variacao >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+            {% if dados.percentual_variacao > 0 %}+{% endif %}{{ formatar_decimal_ptbr(dados.percentual_variacao, 10) }}%
+        </span>
+        {% else %}
+        <span class="badge bg-secondary">0%</span>
+        {% endif %}
+    </td>
+    <td class="text-center">
+        {% if dados.diferenca != 0 and dados.valor_original != dados.valor_recalculado %}
+        <i class="fas fa-edit text-warning" title="Alterado"></i>
+        {% else %}
+        <i class="fas fa-check text-success" title="Inalterado"></i>
+        {% endif %}
+    </td>
+</tr>
+{% endmacro %}
+
+
+{% set labels_campos_comparativo = {
+    'valorReconhecido': 'Valor Reconhecido',
+    'valorReconhecidoComOH': 'Valor Reconhecido com Overhead',
+    'valorLancamentoTotal': 'Valor de Lançamento Total',
+    'valorReconhecivel': 'Valor Reconhecível',
+    'valorNaoReconhecido': 'Valor Não Reconhecido',
+    'valorNaoPassivelRecuperacao': 'Valor Não Passível de Recuperação',
+    'overHeadTotal': 'Overhead Total',
+    'overHeadExploracao': 'Overhead Exploração',
+    'overHeadProducao': 'Overhead Produção',
+    'valorReconhecidoExploracao': 'Valor Reconhecido Exploração',
+    'valorReconhecidoProducao': 'Valor Reconhecido Produção',
+    'valorRecuperado': 'Valor Recuperado',
+    'valorRecuperadoTotal': 'Valor Recuperado Total',
+    'taxaCorrecao': 'Taxa de Correção',
+    'igpmAcumulado': 'IGPM Acumulado',
+    'igpmAcumuladoReais': 'IGPM Acumulado (R$)',
+    'ipcaAcumulado': 'IPCA Acumulado',
+    'ipcaAcumuladoReais': 'IPCA Acumulado (R$)',
+    'diferencaValor': 'Diferença de Valor',
+    'quantidadeLancamento': 'Quantidade de Lançamentos',
+    'valorRecusado': 'Valor Recusado',
+    'flgRecuperado': 'Recuperado'
+} %}
+
+
+{% block extra_css %}
+<style>
+    .valor-calculado {
+        border-bottom: 1px dotted #6c757d;
+        transition: background-color 0.2s ease;
+    }
+
+    .font-monospace {
+        font-family: 'Courier New', monospace;
+    }
+
+    .bg-secondary.bg-opacity-10 {
+        background-color: rgba(108, 117, 125, 0.1) !important;
+    }
+
+    .campo-obrigatorio {
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1800px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-chart-line me-2"></i>
+            Resultado do Recálculo
+        </h1>
+        <div class="btn-group" role="group">
+            <button class="btn btn-outline-info" type="button" data-bs-toggle="modal" data-bs-target="#modalAjudaRecalculo">
+                <i class="fas fa-question-circle me-1"></i>Ajuda
+            </button>
+            {% if visualizacao_temporario %}
+            <button class="btn btn-warning" id="btnAbrirAplicarDefinitivo">
+                <i class="fas fa-check me-1"></i>Aplicar Definitivamente
+            </button>
+            {% else %}
+            <button class="btn btn-success" id="btnSalvarTemporario">
+                <i class="fas fa-save me-1"></i>Salvar Temporário
+            </button>
+            {% endif %}
+            <button class="btn btn-primary" id="btnExportarCSV">
+                <i class="fas fa-download me-1"></i>Exportar CSV
+            </button>
+            <button class="btn btn-info" id="btnVisualizarTimeline">
+                <i class="fas fa-history me-1"></i>Ver Timeline
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert de Sucesso -->
+    <div class="alert alert-success d-flex align-items-center mb-4" role="alert">
+        <i class="fas fa-check-circle me-2"></i>
+        <div>
+            {% if visualizacao_temporario %}
+            <strong>Recálculo temporário carregado para análise.</strong>
+            Revise os dados com atenção antes de aplicar definitivamente na base de dados.
+            {% else %}
+            <strong>Recálculo executado com sucesso!</strong>
+            Analise os resultados abaixo e salve o resultado temporariamente, se necessário.
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Informações do Recálculo -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informações do Recálculo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <strong>CCO ID:</strong><br>
+                            <code>{{ resultado.cco_original._id }}</code>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <strong>Tipo:</strong><br>
+                            <span class="badge bg-primary">{{ resultado.metadata_recalculo.tipo_recalculo }}</span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <strong>Modo:</strong><br>
+                            {% if resultado.metadata_recalculo.modo_recalculo == 'RAIZ' %}
+                            <span class="badge bg-info"
+                                  title="Atualiza apenas os campos financeiros da raiz, sem criar registro no histórico de correções.">
+                                Somente Raiz
+                            </span>
+                            {% elif resultado.metadata_recalculo.modo_recalculo == 'CORRECAO_MONETARIA' %}
+                            <span class="badge bg-info">Correção Monetária</span>
+                            {% else %}
+                            <span class="badge bg-info">{{ resultado.metadata_recalculo.modo_recalculo }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <strong>Contrato:</strong><br>
+                            <span>{{ resultado.cco_original.contratoCpp }}</span>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <strong>Campo:</strong><br>
+                            <span>{{ resultado.cco_original.campo }}</span>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <strong>Remessa:</strong><br>
+                            <span>{{ resultado.cco_original.remessa }}</span>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <strong>Fase:</strong><br>
+                            <span>{{ resultado.cco_original.faseRemessa }}</span>
+                        </div>
+                    </div>
+                    
+                    {% if resultado.metadata_recalculo.tipo_recalculo == 'TRACK_PARTICIPATION' %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <strong>TP Original:</strong><br>
+                            <span class="text-muted">{{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_original, 3) }}%</span>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <strong>TP Correção:</strong><br>
+                            <span class="text-primary">{{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_correcao, 3) }}%</span>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <strong>Fator de Correção:</strong><br>
+                            <span class="text-info">{{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}</span>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <strong>Data/Hora:</strong><br>
+                            <span class="text-muted">{{ resultado.metadata_recalculo.data_recalculo.strftime('%d/%m/%Y %H:%M') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if resultado.metadata_recalculo.observacoes %}
+                    <hr>
+                    <div class="row">
+                        <div class="col-12">
+                            <strong>Observações:</strong><br>
+                            <div class="bg-light p-2 rounded">{{ resultado.metadata_recalculo.observacoes }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        Resumo das Alterações
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="display-6 text-primary">{{ resultado.resumo.total_campos_alterados }}</div>
+                        <small class="text-muted">Campos Alterados</small>
+                    </div>
+                    
+                    <div class="text-center mb-3">
+                        <div class="h4 text-warning">{{ formatar_decimal_ptbr(resultado.resumo.maior_variacao_percentual, 6) }}%</div>
+                        <small class="text-muted">Maior Variação</small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Status dos valores principais -->
+                    {% for campo, dados in resultado.comparativo.items() %}
+                    {% if campo in ['valorReconhecido', 'valorReconhecidoComOH', 'overHeadTotal'] %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        {% set campo_limpo = campo.replace('correcao_', '').replace('cco_', '') %}
+                        <small>{{ labels_campos_comparativo.get(campo_limpo, campo_limpo) }}:</small>
+                        {% if dados.diferenca != 0 %}
+                        <span class="badge bg-warning">{{ formatar_decimal_ptbr(dados.percentual_variacao, 1) }}%</span>
+                        {% else %}
+                        <span class="badge bg-secondary">0%</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalhes dos Cálculos -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calculator me-2"></i>
+                        Detalhes dos Cálculos
+                        <button class="btn btn-sm btn-outline-info float-end" type="button" data-bs-toggle="modal"
+                                data-bs-target="#modalFormulas">
+                            <i class="fas fa-eye me-1"></i>Mostrar Fórmulas
+                        </button>
+                    </h5>
+                </div>
+                <div class="card-body py-2">
+                    <small class="text-muted">
+                        Clique em "Mostrar Fórmulas" para ver, passo a passo, como o fator de correção e cada
+                        valor foram calculados neste recálculo.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% set eh_correcao_monetaria = resultado.metadata_recalculo.modo_recalculo == 'CORRECAO_MONETARIA' %}
+    {% set thead_comparativo %}
+    <thead class="table-dark">
+        <tr>
+            <th>Campo</th>
+            <th class="text-end">Valor Original (R$)</th>
+            <th class="text-end">Valor Recalculado (R$)</th>
+            <th class="text-end">Diferença (R$)</th>
+            <th class="text-center">Variação (%)</th>
+            <th class="text-center">Status</th>
+        </tr>
+    </thead>
+    {% endset %}
+
+    {# A raiz é sempre recalculada de forma independente, nos três modos — por isso os campos
+       "sem prefixo" (comparação raiz-a-raiz) aparecem sempre no primeiro bloco. Os campos
+       "correcao_*" só existem quando uma nova correção RETIFICACAO foi de fato criada (modo
+       Correção Monetária, e só quando já havia histórico de correções antes do recálculo). #}
+    {% set ns_existe_correcao = namespace(valor=false) %}
+    {% for campo in resultado.comparativo.keys() %}
+        {% if campo.startswith('correcao_') %}
+            {% set ns_existe_correcao.valor = true %}
+        {% endif %}
+    {% endfor %}
+    {% set existe_nova_correcao = ns_existe_correcao.valor %}
+
+    {% set ns_raiz = namespace(qtd=0) %}
+    {% for campo, dados in resultado.comparativo.items() %}
+        {% if not campo.startswith('correcao_') and campo != 'quantidadeLancamento' and dados.diferenca != 0 %}
+            {% set ns_raiz.qtd = ns_raiz.qtd + 1 %}
+        {% endif %}
+    {% endfor %}
+
+    {% set ns_correcao = namespace(qtd=0) %}
+    {% for campo, dados in resultado.comparativo.items() %}
+        {% if campo.startswith('correcao_') and campo != 'correcao_diferencaValor' and dados.diferenca != 0 %}
+            {% set ns_correcao.qtd = ns_correcao.qtd + 1 %}
+        {% endif %}
+    {% endfor %}
+
+    <!-- Comparativo de Valores -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-balance-scale me-2"></i>
+                Comparativo de Valores
+            </h5>
+            {% if resultado.metadata_recalculo.modo_recalculo == 'RAIZ' %}
+            <span class="badge bg-info" title="Atualiza apenas os campos financeiros da raiz, sem criar registro no histórico de correções.">
+                Somente Raiz
+            </span>
+            {% else %}
+            <span class="badge bg-warning">Raiz e Correção Monetária</span>
+            {% endif %}
+        </div>
+        <div class="card-body p-0">
+
+            <!-- Bloco: Alterações na Raiz -->
+            <div class="border-bottom">
+                <button class="btn btn-link text-decoration-none w-100 text-start px-3 py-2 d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#blocoRaizComparativo" aria-expanded="true">
+                    <span>
+                        <i class="fas fa-sitemap me-2 text-primary"></i>
+                        <strong class="text-dark">Alterações na Raiz da CCO</strong>
+                        <span class="badge bg-secondary ms-2">{{ ns_raiz.qtd }} campo(s) alterado(s)</span>
+                    </span>
+                    <i class="fas fa-chevron-down text-muted"></i>
+                </button>
+                <div class="collapse show" id="blocoRaizComparativo">
+                    {% if eh_correcao_monetaria and not existe_nova_correcao %}
+                    <div class="alert alert-light border small mx-3 mt-2 mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Esta CCO não possui correções monetárias anteriores — o recálculo atualizou somente a
+                        raiz (nenhuma nova correção foi criada).
+                    </div>
+                    {% endif %}
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            {{ thead_comparativo }}
+                            <tbody>
+                                {% for campo, dados in resultado.comparativo.items() %}
+                                    {% if not campo.startswith('correcao_') and campo != 'quantidadeLancamento' %}
+                                        {{ linha_comparativo(campo, dados, labels_campos_comparativo, resultado) }}
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {% if existe_nova_correcao %}
+            <!-- Bloco: Nova Correção Monetária -->
+            <div>
+                <button class="btn btn-link text-decoration-none w-100 text-start px-3 py-2 d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#blocoCorrecaoComparativo" aria-expanded="true">
+                    <span>
+                        <i class="fas fa-file-invoice-dollar me-2 text-warning"></i>
+                        <strong class="text-dark">Nova Correção Monetária Criada</strong>
+                        <span class="badge bg-secondary ms-2">{{ ns_correcao.qtd }} campo(s) alterado(s)</span>
+                    </span>
+                    <i class="fas fa-chevron-down text-muted"></i>
+                </button>
+                <div class="collapse show" id="blocoCorrecaoComparativo">
+                    <div class="alert alert-light border small mx-3 mt-2 mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Estes valores pertencem à nova entrada <code>RETIFICACAO</code> adicionada ao histórico de
+                        correções monetárias da CCO — calculados a partir da última correção existente, de forma
+                        independente da raiz (bloco acima). As correções já existentes não são alteradas.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            {{ thead_comparativo }}
+                            <tbody>
+                                {% for campo, dados in resultado.comparativo.items() %}
+                                    {% if campo.startswith('correcao_') and campo != 'correcao_diferencaValor' %}
+                                        {{ linha_comparativo(campo, dados, labels_campos_comparativo, resultado) }}
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- Gráfico Comparativo -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-bar me-2"></i>
+                Visualização Comparativa
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-scroll-container" style="width: 100%; overflow-x: auto; overflow-y: hidden;">
+                <div class="chart-container" style="height: 400px; min-width: 100%;">
+                    <canvas id="graficoComparativo"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações Finais -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-cogs me-2"></i>
+                Ações Disponíveis
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-lg-8">
+                    <p class="text-muted mb-3">
+                        Escolha uma das opções abaixo para prosseguir com o resultado do recálculo:
+                    </p>
+                    
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if visualizacao_temporario %}
+                        <button class="btn btn-warning" id="btnAbrirAplicarDefinitivo2">
+                            <i class="fas fa-check me-1"></i>Aplicar Definitivamente
+                        </button>
+                        {% else %}
+                        <button class="btn btn-success" id="btnSalvarTemporario2">
+                            <i class="fas fa-save me-1"></i>Salvar como Temporário
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-primary" id="btnExportarCSV2">
+                            <i class="fas fa-download me-1"></i>Exportar Relatório CSV
+                        </button>
+                        <button class="btn btn-info" id="btnNovoRecalculo">
+                            <i class="fas fa-redo me-1"></i>Novo Recálculo
+                        </button>
+                        <button class="btn btn-secondary" onclick="history.back()">
+                            <i class="fas fa-arrow-left me-1"></i>Voltar
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% if visualizacao_temporario %}
+                        <strong>Importante:</strong> A aplicação definitiva altera os dados na base. Confirme somente após revisar todos os valores.
+                        {% else %}
+                        <strong>Importante:</strong> Salve o resultado como temporário para manter o registro do recálculo.
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Ajuda -->
+<div class="modal fade" id="modalAjudaRecalculo" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-book me-2"></i>Como funciona o Recálculo de Track Participation (TP)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">
+                    O recálculo aplica um novo <strong>Track Participation (TP)</strong> a uma CCO, ajustando os
+                    valores financeiros pelo <strong>fator de correção</strong> abaixo. Existem dois modos, com
+                    comportamentos bem diferentes:
+                </p>
+
+                <ul class="nav nav-tabs" id="tabsAjudaModo" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ajudaRaiz" type="button">Somente Raiz</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ajudaCorrecao" type="button">Correção Monetária</button>
+                    </li>
+                </ul>
+                <div class="tab-content border border-top-0 p-3 mb-3">
+                    <div class="tab-pane fade show active" id="ajudaRaiz">
+                        <p><strong>O que muda:</strong> só os campos financeiros da <strong>raiz</strong> da CCO.
+                        Cada um dos 12 campos abaixo é multiplicado diretamente pelo fator de correção — não há
+                        cálculo composto, é uma escala simples de cada campo:</p>
+                        <p class="font-monospace small bg-light p-2 rounded">campo_novo = campo_original × fator_correcao</p>
+                        <ul class="small">
+                            <li>valorLancamentoTotal, valorNaoReconhecido, valorReconhecido, valorReconhecivel</li>
+                            <li>valorNaoPassivelRecuperacao, valorReconhecidoExploracao, valorReconhecidoProducao</li>
+                            <li>valorRecusado, overHeadExploracao, overHeadProducao, overHeadTotal</li>
+                            <li><strong>valorReconhecidoComOH</strong> — também escalado diretamente pelo fator (não é
+                                recalculado como "valorReconhecido + overHeadTotal")</li>
+                        </ul>
+                        <p class="small mb-1"><strong>O que NÃO muda:</strong></p>
+                        <ul class="small">
+                            <li>O array <code>correcoesMonetarias</code> — nenhuma correção existente é lida ou alterada,
+                                nenhuma nova correção é criada.</li>
+                            <li><code>flgRecuperado</code> — permanece como estava.</li>
+                            <li><code>quantidadeLancamento</code> — apesar de aparecer no comparativo, este modo não
+                                recalcula esse campo (limitação atual).</li>
+                        </ul>
+                    </div>
+                    <div class="tab-pane fade" id="ajudaCorrecao">
+                        <p><strong>O que muda:</strong> a raiz <em>e</em>, se já existir histórico, uma nova correção
+                        — mas as duas são calculadas de forma <strong>independente</strong>, cada uma a partir do seu
+                        próprio valor anterior. Uma não é derivada da outra:</p>
+                        <ol class="small">
+                            <li><strong>Raiz:</strong> recalculada sozinha, exatamente como no modo Somente Raiz —
+                                cada campo é multiplicado pelo fator de correção a partir do valor original da
+                                própria raiz.</li>
+                            <li><strong>Sem nenhuma correção monetária no histórico:</strong> o recálculo termina
+                                aqui — nenhuma correção é criada (mesmo resultado do modo Somente Raiz).</li>
+                            <li><strong>Com histórico:</strong> cria <strong>exatamente uma</strong> nova correção do
+                                tipo <code>RETIFICACAO</code>, calculada a partir da <strong>última</strong> correção
+                                existente (nunca da raiz) — as correções anteriores nunca são recalculadas, não
+                                importa se são 2 ou 50. Os valores dessa nova correção <strong>não</strong> são
+                                copiados para a raiz.</li>
+                        </ol>
+                        <p class="small mb-1"><strong>Cálculo de "Valor Reconhecido com OH" da nova correção — depende
+                            se a CCO já estava recuperada:</strong></p>
+                        <div class="bg-light p-2 rounded mb-2">
+                            <strong class="text-success">CCO recuperada (flgRecuperado = true):</strong>
+                            <div class="font-monospace small">
+                                diferença = (último "Valor Reconhecido com OH" não-zero do histórico × fator) − esse mesmo valor<br>
+                                nova correção.valorReconhecidoComOH = diferença<br>
+                                nova correção.diferencaValor = diferença
+                            </div>
+                            <p class="small mb-0 mt-1">Essa diferença representa o "ganho" trazido pela correção de TP,
+                            que passa a ficar disponível como novo saldo recuperável da CCO.</p>
+                        </div>
+                        <div class="bg-light p-2 rounded mb-2">
+                            <strong class="text-secondary">CCO não recuperada:</strong>
+                            <div class="font-monospace small">
+                                nova correção.valorReconhecidoComOH = valor atual (última correção/raiz) × fator<br>
+                                nova correção.diferencaValor = 0
+                            </div>
+                            <p class="small mb-0 mt-1">
+                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                                <code>diferencaValor</code> é sempre gravado como <code>0</code> neste caminho —
+                                comportamento atual do sistema, não uma fórmula matemática (é uma limitação
+                                conhecida, não uma regra de negócio).
+                            </p>
+                        </div>
+                        <p class="small mb-1"><strong>Mudança de status de recuperação:</strong> o <code>flgRecuperado</code>
+                        da raiz só volta de <code>true</code> para <code>false</code> quando <strong>as duas</strong>
+                        condições acontecem: a CCO já era recuperada <strong>e</strong> o novo
+                        "Valor Reconhecido com OH" calculado for <strong>positivo</strong>.</p>
+                        <p class="small mb-0"><code>valorRecuperado</code>/<code>valorRecuperadoTotal</code> são
+                        copiados da última correção <strong>sem</strong> aplicar o fator — eles não entram na conta
+                        de <code>valorReconhecidoComOH</code>/<code>diferencaValor</code> acima.</p>
+                    </div>
+                </div>
+
+                <hr>
+                <h6 class="text-primary"><i class="fas fa-calculator me-1"></i>Fator de Correção e Variação (iguais nos dois modos)</h6>
+                <div class="font-monospace small bg-light p-2 rounded">
+                    fator_correcao = TP Correção ÷ TP Original<br>
+                    variação (%) = ((TP Correção − TP Original) ÷ TP Original) × 100
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Mostrar Fórmulas -->
+<div class="modal fade" id="modalFormulas" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-calculator me-2"></i>Fórmulas aplicadas neste recálculo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-6 mb-3">
+                        <div class="bg-light p-3 rounded">
+                            <h6 class="text-primary">
+                                <i class="fas fa-calculator me-1"></i>
+                                Fator de Correção
+                            </h6>
+                            <div class="font-monospace small">
+                                <strong>Fórmula:</strong> TP Novo ÷ TP Original<br>
+                                <strong>Cálculo:</strong> {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_correcao, 6) }} ÷ {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_original, 6) }}<br>
+                                <strong>Resultado:</strong> <span class="text-success">{{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-3">
+                        <div class="bg-light p-3 rounded">
+                            <h6 class="text-primary">
+                                <i class="fas fa-percentage me-1"></i>
+                                Variação Percentual
+                            </h6>
+                            <div class="font-monospace small">
+                                <strong>Fórmula:</strong> ((TP Novo - TP Original) ÷ TP Original) × 100<br>
+                                <strong>Cálculo:</strong> (({{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_correcao, 6) }} - {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_original, 6) }}) ÷ {{ formatar_decimal_ptbr(resultado.metadata_recalculo.tp_original, 6) }}) × 100<br>
+                                <strong>Resultado:</strong> <span class="text-info">{{ formatar_decimal_ptbr(((resultado.metadata_recalculo.tp_correcao - resultado.metadata_recalculo.tp_original) / resultado.metadata_recalculo.tp_original) * 100, 10) }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exemplos de cálculos por campo -->
+                <div class="row">
+                    {% for campo, dados in resultado.comparativo.items() %}
+                    {% if dados.diferenca != 0 and campo in ['correcao_valorReconhecido', 'valorReconhecido'] %}
+                    <div class="col-lg-6 mb-3">
+                        <div class="bg-secondary bg-opacity-10 p-3 rounded">
+                            <h6 class="text-dark">
+                                <i class="fas fa-chart-line me-1"></i>
+                                {% set campo_limpo = campo.replace('correcao_', '').replace('cco_', '') %}
+                                {{ labels_campos_comparativo.get(campo_limpo, campo_limpo) }}
+                            </h6>
+                            <div class="font-monospace small">
+                                <strong>Valor Original:</strong> R$ {{ formatar_decimal_ptbr(dados.valor_original, 6) }}<br>
+                                <strong>Fórmula:</strong> Valor Original × Fator de Correção<br>
+                                <strong>Cálculo:</strong> {{ formatar_decimal_ptbr(dados.valor_original, 6) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}<br>
+                                <strong>Resultado:</strong> <span class="text-success">R$ {{ formatar_decimal_ptbr(dados.valor_recalculado, 6) }}</span><br>
+                                <strong>Diferença:</strong> <span class="{% if dados.diferenca > 0 %}text-success{% else %}text-danger{% endif %}">R$ {{ formatar_decimal_ptbr(dados.diferenca, 6) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                    <div class="col-12 mb-3">
+                        <div class="bg-primary bg-opacity-10 p-3 rounded">
+                            <h6 class="text-primary">
+                                <i class="fas fa-coins me-1"></i>
+                                Cálculo do Valor Reconhecido com OH
+                            </h6>
+                            <div class="font-monospace small">
+                                {% if resultado.metadata_recalculo.modo_recalculo == 'CORRECAO_MONETARIA' and not existe_nova_correcao %}
+                                    <div class="alert alert-primary p-2 mb-2">
+                                        <strong>Sem histórico de correções monetárias</strong><br>
+                                        <em>Esta CCO não tinha nenhuma correção monetária antes do recálculo — não há
+                                        "última correção" para basear uma nova RETIFICACAO. O recálculo atualizou
+                                        só a raiz, igual ao modo Somente Raiz.</em>
+                                    </div>
+                                    <strong>Fórmula:</strong> Valor Reconhecido com OH (original) × Fator de Correção<br>
+                                    {% if 'valorReconhecidoComOH' in resultado.comparativo %}
+                                    <strong>Cálculo:</strong> {{ formatar_decimal_ptbr(resultado.comparativo['valorReconhecidoComOH'].valor_original, 6) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}<br>
+                                    <strong>Resultado:</strong> <span class="text-success">{{ formatar_decimal_ptbr(resultado.comparativo['valorReconhecidoComOH'].valor_recalculado, 6) }}</span>
+                                    {% endif %}
+                                {% elif resultado.metadata_recalculo.modo_recalculo == 'CORRECAO_MONETARIA' %}
+                                    {% if 'correcao_flgRecuperado' in resultado.comparativo %}
+                                        <div class="alert alert-warning p-2">
+                                            <strong>CCO estava Recuperada (flgRecuperado = true)</strong><br>
+                                            <em>Regra para CCO recuperada:
+                                                <ul class="mb-0">
+                                                    <li>Obter o último "Valor Reconhecido com OH" não-zero do histórico de correções.</li>
+                                                    <li>Aplicar o fator de correção nesse valor.</li>
+                                                    <li>A diferença entre o valor recalculado e o valor original é o "ganho" da correção de TP.</li>
+                                                    <li>Essa diferença vira, ao mesmo tempo, o "Valor Reconhecido com OH" e a "Diferença de Valor" da nova correção — tornando esse valor disponível como novo saldo recuperável.</li>
+                                                    <li>Se essa diferença for positiva, a CCO volta ao status "Recuperável" (flgRecuperado = false).</li>
+                                                </ul>
+                                            </em>
+                                        </div>
+                                        <strong>1. Último "Valor Reconhecido com OH" não-zero do histórico:</strong><br>
+                                        <span class="text-info">{{ formatar_decimal_ptbr(resultado.ultimo_valor_reconhecido_com_oh, 6) }}</span><br><br>
+
+                                        <strong>2. Aplicar fator de correção:</strong><br>
+                                        {{ formatar_decimal_ptbr(resultado.ultimo_valor_reconhecido_com_oh, 6) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}<br>
+                                        = <span class="text-warning">{{ formatar_decimal_ptbr(resultado.ultimo_valor_reconhecido_com_oh * resultado.metadata_recalculo.fator_correcao, 6) }}</span><br><br>
+
+                                        <strong>3. Diferença (= novo "Valor Reconhecido com OH" e "Diferença de Valor" da nova correção):</strong><br>
+                                        {{ formatar_decimal_ptbr(resultado.ultimo_valor_reconhecido_com_oh * resultado.metadata_recalculo.fator_correcao, 6) }} − {{ formatar_decimal_ptbr(resultado.ultimo_valor_reconhecido_com_oh, 6) }}<br>
+                                        = <span class="text-success">{{ formatar_decimal_ptbr((resultado.ultimo_valor_reconhecido_com_oh * resultado.metadata_recalculo.fator_correcao) - resultado.ultimo_valor_reconhecido_com_oh, 6) }}</span>
+                                    {% else %}
+                                        <div class="alert alert-success p-2 mb-2">
+                                            <strong>CCO Não Recuperada (flgRecuperado = false)</strong><br>
+                                            <em>"Valor Reconhecido com OH" da nova correção é o valor atual escalado pelo fator — sem subtração. A "Diferença de Valor" é gravada como 0 neste caminho (comportamento atual do sistema).</em>
+                                        </div>
+                                        <strong>1. Valor atual (última correção ou raiz):</strong><br>
+                                        <span class="text-info">{{ formatar_decimal_ptbr(resultado.comparativo['correcao_valorReconhecidoComOH'].valor_original, 6) }}</span><br><br>
+
+                                        <strong>2. Aplicar fator de correção:</strong><br>
+                                        {{ formatar_decimal_ptbr(resultado.comparativo['correcao_valorReconhecidoComOH'].valor_original, 6) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}<br>
+                                        = <span class="text-success">{{ formatar_decimal_ptbr(resultado.comparativo['correcao_valorReconhecidoComOH'].valor_recalculado, 6) }}</span> (novo "Valor Reconhecido com OH" da correção)<br><br>
+
+                                        <strong>3. Diferença de Valor da nova correção:</strong> <span class="text-muted">0 (fixo, não calculado neste caminho)</span>
+                                    {% endif %}
+                                {% else %}
+                                    <div class="alert alert-primary p-2 mb-2">
+                                        <strong>Modo Somente Raiz</strong><br>
+                                        <em>"Valor Reconhecido com OH" é escalado diretamente pelo fator de correção, igual aos demais campos da raiz — não é composto de "valorReconhecido + overHeadTotal".</em>
+                                    </div>
+                                    <strong>Fórmula:</strong> Valor Reconhecido com OH (original) × Fator de Correção<br>
+                                    {% if 'valorReconhecidoComOH' in resultado.comparativo %}
+                                    <strong>Cálculo:</strong> {{ formatar_decimal_ptbr(resultado.comparativo['valorReconhecidoComOH'].valor_original, 6) }} × {{ formatar_decimal_ptbr(resultado.metadata_recalculo.fator_correcao, 6) }}<br>
+                                    <strong>Resultado:</strong> <span class="text-success">{{ formatar_decimal_ptbr(resultado.comparativo['valorReconhecidoComOH'].valor_recalculado, 6) }}</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mostrar mudança de flag se aplicável -->
+                    {% if 'correcao_flgRecuperado' in resultado.comparativo %}
+                    <div class="col-12 mb-3">
+                        <div class="bg-warning bg-opacity-20 p-3 rounded">
+                            <h6 class="text-warning">
+                                <i class="fas fa-flag me-1"></i>
+                                Possível Alteração de Status de Recuperação
+                            </h6>
+                            <div class="small">
+                                <strong>Regra de Negócio:</strong> Quando uma CCO recuperada recebe uma correção de TP
+                                cujo novo "Valor Reconhecido com OH" é positivo, ela volta ao status "Recuperável"
+                                (flgRecuperado = false), permitindo que o novo valor seja recuperado futuramente.<br><br>
+                                <strong>Antes:</strong> <span class="badge bg-success">RECUPERADA</span><br>
+                                <strong>Se o novo saldo for positivo:</strong> <span class="badge bg-primary">RECUPERÁVEL</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if visualizacao_temporario %}
+<!-- Modal de Aplicação Definitiva -->
+<div class="modal fade" id="modalAplicarDefinitivo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title">
+                    <i class="fas fa-triangle-exclamation me-2"></i>
+                    Confirmar Aplicação Definitiva
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>Atenção:</strong> ao confirmar esta ação, o recálculo será aplicado definitivamente na base de dados.
+                    Essa operação poderá alterar valores, status e informações financeiras da CCO selecionada.
+                    Antes de prosseguir, revise cuidadosamente o comparativo apresentado nesta tela.
+                </div>
+
+                <p class="mb-3">
+                    Para continuar, informe o motivo da aplicação definitiva e confirme que você revisou os dados e se responsabiliza pela alteração.
+                </p>
+
+                <div class="mb-3">
+                    <label for="motivoAplicacaoDefinitiva" class="form-label">
+                        Motivo da mudança <span class="campo-obrigatorio">*</span>
+                    </label>
+                    <textarea class="form-control" id="motivoAplicacaoDefinitiva" rows="4"
+                              placeholder="Descreva o motivo da aplicação definitiva deste recálculo..."></textarea>
+                    <div class="form-text">
+                        Informe uma justificativa clara para auditoria e rastreabilidade da alteração.
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="checkResponsabilidadeAplicacao">
+                    <label class="form-check-label" for="checkResponsabilidadeAplicacao">
+                        Confirmo que revisei os valores recalculados, compreendo que esta ação modificará a base de dados e me responsabilizo pela aplicação definitiva.
+                        <span class="campo-obrigatorio">*</span>
+                    </label>
+                </div>
+
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="checkAtualizarRemessaDerivada">
+                    <label class="form-check-label" for="checkAtualizarRemessaDerivada">
+                        Refletir a alteração de TP também na remessa derivada
+                    </label>
+                    <div class="form-text">
+                        Ao marcar esta opção, serão atualizados somente os gastos da remessa derivada que pertencem à mesma fase da CCO.
+                    </div>
+                </div>
+
+                <div id="erroConfirmacaoAplicacao" class="alert alert-danger mt-3" style="display: none;">
+                    Informe o motivo e marque a confirmação de responsabilidade para habilitar a aplicação definitiva.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarAplicacaoDefinitiva" disabled>
+                    <i class="fas fa-check me-1"></i>Aplicar Definitivamente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+if (typeof Chart === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>');
+}
+</script>
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+document.addEventListener('DOMContentLoaded', function() {
+    const cacheKey = '{{ cache_key | default("") }}';
+    const ccoId = '{{ resultado.cco_original._id }}';
+    const visualizacaoTemporario = {{ 'true' if visualizacao_temporario else 'false' }};
+    let idTemporario = '{{ id_temporario | default("") }}';
+    let modalAplicarDefinitivo = null;
+
+    const modalAplicarDefinitivoEl = document.getElementById('modalAplicarDefinitivo');
+    if (visualizacaoTemporario && modalAplicarDefinitivoEl) {
+        modalAplicarDefinitivo = new bootstrap.Modal(modalAplicarDefinitivoEl);
+    }
+    
+    // Configurar gráfico comparativo
+    configurarGraficoComparativo();
+    
+    // Event listeners para botões
+    const btnSalvarTemporario = document.getElementById('btnSalvarTemporario');
+    const btnSalvarTemporario2 = document.getElementById('btnSalvarTemporario2');
+    const btnExportarCSV = document.getElementById('btnExportarCSV');
+    const btnExportarCSV2 = document.getElementById('btnExportarCSV2');
+    const btnVisualizarTimeline = document.getElementById('btnVisualizarTimeline');
+    const btnNovoRecalculo = document.getElementById('btnNovoRecalculo');
+    const btnAbrirAplicarDefinitivo = document.getElementById('btnAbrirAplicarDefinitivo');
+    const btnAbrirAplicarDefinitivo2 = document.getElementById('btnAbrirAplicarDefinitivo2');
+
+    if (btnSalvarTemporario) btnSalvarTemporario.addEventListener('click', salvarTemporario);
+    if (btnSalvarTemporario2) btnSalvarTemporario2.addEventListener('click', salvarTemporario);
+    if (btnExportarCSV) btnExportarCSV.addEventListener('click', exportarCSV);
+    if (btnExportarCSV2) btnExportarCSV2.addEventListener('click', exportarCSV);
+
+    if (btnVisualizarTimeline) {
+        btnVisualizarTimeline.addEventListener('click', () => {
+            window.open(`${window.API_PREFIX}/cco-timeline/${ccoId}`, '_blank');
+        });
+    }
+
+    if (btnNovoRecalculo) {
+        btnNovoRecalculo.addEventListener('click', () => {
+            window.location.href = `${window.API_PREFIX}/recalculo/executar/${ccoId}`;
+        });
+    }
+
+    if (btnAbrirAplicarDefinitivo) {
+        btnAbrirAplicarDefinitivo.addEventListener('click', abrirModalAplicarDefinitivo);
+    }
+
+    if (btnAbrirAplicarDefinitivo2) {
+        btnAbrirAplicarDefinitivo2.addEventListener('click', abrirModalAplicarDefinitivo);
+    }
+
+    configurarModalAplicarDefinitivo();
+
+    function configurarGraficoComparativo() {
+        const canvas = document.getElementById('graficoComparativo');
+
+        if (!canvas) {
+            console.warn('Canvas graficoComparativo não encontrado.');
+            return;
+        }
+
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js não foi carregado. Gráfico comparativo indisponível.');
+            const container = canvas.closest('.chart-container') || canvas.parentElement;
+            if (container) {
+                container.innerHTML = `
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Não foi possível carregar o gráfico comparativo porque a biblioteca Chart.js não foi carregada.
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        const comparativo = {{ resultado.comparativo | tojson }};
+        const labelsCamposComparativo = {{ labels_campos_comparativo | tojson }};
+        const campos = Object.keys(comparativo || {});
+
+        const camposGraficos = campos.filter(campo => {
+            const dados = comparativo[campo] || {};
+            return typeof dados.valor_original === 'number'
+                && typeof dados.valor_recalculado === 'number'
+                && campo !== 'correcao_flgRecuperado';
+        });
+
+        const chartContainer = canvas.closest('.chart-container');
+        const chartScrollContainer = canvas.closest('.chart-scroll-container');
+
+        if (chartContainer && chartScrollContainer) {
+            // Reserva espaço horizontal suficiente para cada grupo de barras/rótulo.
+            // Em telas menores ou com muitos campos, o gráfico passa a ter rolagem horizontal
+            // em vez de comprimir os nomes uns sobre os outros.
+            const larguraMinimaPorCampo = 210;
+            const larguraDisponivel = chartScrollContainer.clientWidth || 0;
+            const larguraNecessaria = Math.max(
+                larguraDisponivel,
+                camposGraficos.length * larguraMinimaPorCampo
+            );
+
+            chartContainer.style.width = `${larguraNecessaria}px`;
+        }
+
+        if (camposGraficos.length === 0) {
+            const container = canvas.closest('.chart-container') || canvas.parentElement;
+            if (container) {
+                container.innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Não há valores numéricos disponíveis para montar a visualização comparativa.
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        const valoresOriginais = camposGraficos.map(campo => Number(comparativo[campo].valor_original || 0));
+        const valoresRecalculados = camposGraficos.map(campo => Number(comparativo[campo].valor_recalculado || 0));
+
+        function quebrarRotuloGrafico(rotulo, limite = 22) {
+            const palavras = String(rotulo || '').trim().split(/\s+/);
+            const linhas = [];
+            let linhaAtual = '';
+
+            palavras.forEach(palavra => {
+                const candidata = linhaAtual ? `${linhaAtual} ${palavra}` : palavra;
+
+                if (candidata.length > limite && linhaAtual) {
+                    linhas.push(linhaAtual);
+                    linhaAtual = palavra;
+                } else {
+                    linhaAtual = candidata;
+                }
+            });
+
+            if (linhaAtual) {
+                linhas.push(linhaAtual);
+            }
+
+            return linhas.length ? linhas : [''];
+        }
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: camposGraficos.map(c => {
+                    const campoLimpo = c
+                        .replace(/^correcao_/, '')
+                        .replace(/^cco_/, '');
+
+                    const rotulo = labelsCamposComparativo[campoLimpo] || campoLimpo;
+                    return quebrarRotuloGrafico(rotulo, 22);
+                }),
+                datasets: [{
+                    label: 'Valor Original',
+                    data: valoresOriginais,
+                    categoryPercentage: 0.72,
+                    barPercentage: 0.78,
+                    backgroundColor: 'rgba(108, 117, 125, 0.7)',
+                    borderColor: 'rgba(108, 117, 125, 1)',
+                    borderWidth: 1
+                }, {
+                    label: 'Valor Recalculado',
+                    data: valoresRecalculados,
+                    categoryPercentage: 0.72,
+                    barPercentage: 0.78,
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        offset: true,
+                        ticks: {
+                            align: 'center',
+                            crossAlign: 'center',
+                            autoSkip: false,
+                            minRotation: 0,
+                            maxRotation: 0,
+                            padding: 8
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + Number(value).toLocaleString('pt-BR', {
+                                    maximumFractionDigits: 6
+                                });
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function(context) {
+                                if (!context || !context.length) return '';
+
+                                const label = context[0].label;
+                                return Array.isArray(label) ? label.join(' ') : label;
+                            },
+                            label: function(context) {
+                                return context.dataset.label + ': R$ ' + Number(context.parsed.y).toLocaleString('pt-BR', {
+                                    maximumFractionDigits: 6
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function salvarTemporario() {
+        fetch(`${window.API_PREFIX}/recalculo/api/salvar-temporario`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ cache_key: cacheKey })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                idTemporario = data.id_temporario;
+                mostrarSucesso('Resultado salvo temporariamente com sucesso!');
+
+                setTimeout(() => {
+                    window.location.href = `${window.API_PREFIX}/recalculo/temporarios`;
+                }, 300);
+            } else {
+                mostrarErro('Erro ao salvar temporário: ' + data.error);
+            }
+        })
+        .catch(error => {
+            mostrarErro('Erro na requisição: ' + error.message);
+        });
+    }
+    
+    function exportarCSV() {
+        let endpoint = '';
+
+        if (visualizacaoTemporario) {
+            if (!idTemporario) {
+                mostrarErro('ID do recálculo temporário não encontrado. Volte para a lista de temporários e abra o resultado novamente.');
+                return;
+            }
+
+            endpoint = `${window.API_PREFIX}/recalculo/api/exportar-csv-temporario/${encodeURIComponent(idTemporario)}`;
+        } else {
+            if (!cacheKey) {
+                mostrarErro('Cache key não encontrada para exportação CSV.');
+                return;
+            }
+
+            endpoint = `${window.API_PREFIX}/recalculo/api/exportar-csv/${cacheKey}`;
+        }
+
+        fetch(endpoint)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const blob = new Blob([data.csv_content], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+
+                link.href = url;
+                link.download = data.filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                URL.revokeObjectURL(url);
+                mostrarSucesso('Relatório CSV exportado com sucesso!');
+            } else {
+                mostrarErro('Erro ao exportar CSV: ' + data.error);
+            }
+        })
+        .catch(error => {
+            mostrarErro('Erro na requisição: ' + error.message);
+        });
+    }
+
+    function configurarModalAplicarDefinitivo() {
+        if (!visualizacaoTemporario) return;
+
+        const motivo = document.getElementById('motivoAplicacaoDefinitiva');
+        const check = document.getElementById('checkResponsabilidadeAplicacao');
+        const btnConfirmar = document.getElementById('btnConfirmarAplicacaoDefinitiva');
+
+        if (!motivo || !check || !btnConfirmar) return;
+
+        const validar = () => {
+            const motivoPreenchido = motivo.value.trim().length >= 5;
+            const confirmado = check.checked;
+            btnConfirmar.disabled = !(motivoPreenchido && confirmado);
+        };
+
+        motivo.addEventListener('input', validar);
+        check.addEventListener('change', validar);
+        btnConfirmar.addEventListener('click', aplicarDefinitivamente);
+
+        validar();
+    }
+
+    function abrirModalAplicarDefinitivo() {
+        if (!modalAplicarDefinitivo) return;
+
+        document.getElementById('motivoAplicacaoDefinitiva').value = '';
+        document.getElementById('checkResponsabilidadeAplicacao').checked = false;
+
+        const checkAtualizarRemessaDerivada = document.getElementById('checkAtualizarRemessaDerivada');
+        if (checkAtualizarRemessaDerivada) {
+            checkAtualizarRemessaDerivada.checked = false;
+        }
+
+        document.getElementById('btnConfirmarAplicacaoDefinitiva').disabled = true;
+        document.getElementById('erroConfirmacaoAplicacao').style.display = 'none';
+
+        modalAplicarDefinitivo.show();
+    }
+
+    function aplicarDefinitivamente() {
+        const motivo = document.getElementById('motivoAplicacaoDefinitiva').value.trim();
+        const check = document.getElementById('checkResponsabilidadeAplicacao').checked;
+        const checkAtualizarRemessaDerivada = document.getElementById('checkAtualizarRemessaDerivada');
+        const atualizarRemessaDerivada = checkAtualizarRemessaDerivada ? checkAtualizarRemessaDerivada.checked : false;
+        const erro = document.getElementById('erroConfirmacaoAplicacao');
+        const btnConfirmar = document.getElementById('btnConfirmarAplicacaoDefinitiva');
+
+        if (!motivo || !check) {
+            erro.style.display = 'block';
+            btnConfirmar.disabled = true;
+            return;
+        }
+
+        if (!idTemporario) {
+            mostrarErro('ID do recálculo temporário não encontrado. Volte para a lista de temporários e abra o resultado novamente.');
+            return;
+        }
+
+        btnConfirmar.disabled = true;
+        btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Aplicando...';
+
+        fetch(`${window.API_PREFIX}/recalculo/api/aplicar-definitivo`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id_temporario: idTemporario,
+                motivo: motivo,
+                confirmado: true,
+                atualizar_remessa_derivada: atualizarRemessaDerivada
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                modalAplicarDefinitivo.hide();
+
+                let mensagemSucesso = 'Recálculo aplicado definitivamente com sucesso!';
+                if (data.remessa_derivada && data.remessa_derivada.success) {
+                    mensagemSucesso += `\n\nRemessa derivada atualizada: ${data.remessa_derivada.total_gastos_afetados} gasto(s) da mesma fase da CCO.`;
+                }
+                if (data.warning) {
+                    mensagemSucesso += `\n\nAtenção: ${data.warning}`;
+                }
+
+                mostrarSucesso(mensagemSucesso);
+                window.location.href = `${window.API_PREFIX}/recalculo/temporarios`;
+            } else {
+                mostrarErro('Erro ao aplicar definitivamente: ' + data.error);
+            }
+        })
+        .catch(error => {
+            mostrarErro('Erro na requisição: ' + error.message);
+        })
+        .finally(() => {
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = '<i class="fas fa-check me-1"></i>Aplicar Definitivamente';
+        });
+    }
+
+    function mostrarSucesso(mensagem) {
+        // TODO: Implementar toast mais elegante
+        alert(mensagem);
+    }
+    
+    function mostrarErro(mensagem) {
+        // TODO: Implementar toast mais elegante
+        alert(mensagem);
+    }
+
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+    // Adicionar efeito hover nas células com cálculos
+    document.querySelectorAll('.valor-calculado').forEach(el => {
+        el.style.cursor = 'help';
+        el.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = 'rgba(13, 110, 253, 0.1)';
+        });
+        el.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = 'transparent';
+        });
+    });
+});
+</script>
+{% endblock %}

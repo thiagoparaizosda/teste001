@@ -1,0 +1,744 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block styles %}
+<style>
+/* ── Filtros ─────────────────────────────────────────────────────────────── */
+.filter-card .card-header { background: var(--ppsa-gradient); color: white; }
+
+/* ── KPI bar ─────────────────────────────────────────────────────────────── */
+.kpi-mini { border-left: 4px solid transparent; }
+.kpi-mini.green  { border-left-color: #48bb78; }
+.kpi-mini.red    { border-left-color: #f56565; }
+.kpi-mini.blue   { border-left-color: #4299e1; }
+.kpi-mini.yellow { border-left-color: #ecc94b; }
+.kpi-num { font-size: 1.5rem; font-weight: 700; font-family: 'Courier New', monospace; }
+
+/* ── Tabela ──────────────────────────────────────────────────────────────── */
+.table-fixed { max-height: 600px; overflow-y: auto; }
+.table-fixed thead th {
+    position: sticky; top: 0; z-index: 5;
+    background: #f8fafc; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .4px;
+    white-space: nowrap;
+}
+.table td { font-size: 11.5px; vertical-align: middle; white-space: nowrap; }
+.mono { font-family: 'Courier New', monospace; }
+
+/* ── Status badges ───────────────────────────────────────────────────────── */
+.st-ok   { background:#c6f6d5; color:#22543d; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-err  { background:#fed7d7; color:#742a2a; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-warn { background:#fefcbf; color:#744210; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-na   { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+/* Bootstrap 5: estilo de linha via td, não tr */
+.row-err > td  { background-color: #fff5f5 !important; }
+.row-warn > td { background-color: #fffff0 !important; }
+.table-hover .row-err:hover > td  { background-color: #fed7d780 !important; }
+.table-hover .row-warn:hover > td { background-color: #fefcbf80 !important; }
+
+/* ── Colunas de seção ────────────────────────────────────────────────────── */
+th.sec-exp  { background: #ebf8ff !important; color: #2b6cb0 !important; }
+th.sec-prod { background: #f0fff4 !important; color: #276749 !important; }
+th.sec-tot  { background: #faf5ff !important; color: #553c9a !important; }
+th.sec-info { background: #f8fafc !important; }
+
+/* ── Collapse detalhe ────────────────────────────────────────────────────── */
+.detail-panel { background:#f7fafc; border-top:1px solid #e2e8f0; font-size:12px; }
+.detail-panel td { padding: 8px 12px !important; }
+
+/* ── Loading overlay ─────────────────────────────────────────────────────── */
+#loadingOverlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.45); z-index:9999;
+    align-items:center; justify-content:center;
+}
+#loadingOverlay.show { display:flex; }
+.spinner-box { background:#fff; border-radius:12px; padding:32px 48px; text-align:center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1700px;">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-circle-check me-2" style="color:#667eea"></i>
+                Verificação de OverHeads (OH)
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0" style="font-size:13px">
+                    <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                    <li class="breadcrumb-item active">Verificação de OH</li>
+                </ol>
+            </nav>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalHelpOH">
+            <i class="fas fa-circle-question me-1"></i>Regras de OH
+        </button>
+    </div>
+
+    <!-- ── Formulário de Busca ────────────────────────────────────────── -->
+    <div class="card filter-card shadow-sm mb-4">
+        <div class="card-header py-2">
+            <h6 class="mb-0 text-white"><i class="fas fa-filter me-2"></i>Filtros de Busca de CCOs</h6>
+        </div>
+        <div class="card-body">
+            <!-- Seletor de banco -->
+            <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0">
+                <span class="fw-semibold" style="font-size:12px"><i class="fas fa-database me-1 text-secondary"></i>Banco:</span>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="dbEnv" id="dbDev" value="dev" checked>
+                    <label class="form-check-label" for="dbDev" style="font-size:12px">
+                        Local (DEV) <span class="badge bg-secondary" style="font-size:9px">MONGO_URI</span>
+                    </label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="radio" name="dbEnv" id="dbPrd" value="prd">
+                    <label class="form-check-label" for="dbPrd" style="font-size:12px">
+                        Produção (PRD) <span class="badge bg-danger" style="font-size:9px">MONGO_URI_PRD</span>
+                    </label>
+                </div>
+            </div>
+            <div class="row g-3">
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Contrato CPP</label>
+                    <select class="form-select form-select-sm" id="contratoCpp">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Campo</label>
+                    <select class="form-select form-select-sm" id="campo">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">
+                        Remessa
+                        <span class="text-muted fw-normal">(ou min-max)</span>
+                    </label>
+                    <input type="text" class="form-control form-control-sm" id="remessa"
+                           placeholder="ex: 99 ou 10-20">
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Remessa Exposição</label>
+                    <input type="text" class="form-control form-control-sm" id="remessaExposicao"
+                           placeholder="ex: 7">
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Fase Remessa</label>
+                    <select class="form-select form-select-sm" id="faseRemessa">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Origem dos Gastos</label>
+                    <select class="form-select form-select-sm" id="origemDosGastos">
+                        <option value="">Todas</option>
+                        <option value="GASTO_EXCLUSIVO">Exclusivo</option>
+                        <option value="GASTO_JAZIDA_COMPARTILHADA">Jazida Compartilhada</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Mês/Ano Referência</label>
+                    <input type="text" class="form-control form-control-sm" id="mesAnoReferencia"
+                           placeholder="ex: 11/2022">
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Recuperada</label>
+                    <select class="form-select form-select-sm" id="flgRecuperado">
+                        <option value="">Todas</option>
+                        <option value="true">Sim</option>
+                        <option value="false">Não</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">
+                        Limite de registros
+                    </label>
+                    <select class="form-select form-select-sm" id="limite">
+                        <option value="100">100</option>
+                        <option value="200" selected>200</option>
+                        <option value="500">500 (máx.)</option>
+                    </select>
+                </div>
+                <div class="col-12 d-flex gap-2 align-items-end">
+                    <button class="btn btn-primary btn-sm px-4" id="btnVerificar">
+                        <i class="fas fa-magnifying-glass me-1"></i>Buscar e Verificar OH
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnLimpar">
+                        <i class="fas fa-eraser me-1"></i>Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── KPIs (oculto até ter resultado) ───────────────────────────── -->
+    <div id="kpiBar" class="row g-3 mb-4" style="display:none!important">
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini blue p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">CCOs únicas</div>
+                <div class="kpi-num text-primary" id="kCcos">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini blue p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Linhas verificadas</div>
+                <div class="kpi-num text-primary" id="kTotal">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini green p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">OK</div>
+                <div class="kpi-num text-success" id="kOk">—</div>
+                <div class="text-muted" style="font-size:11px" id="kPctOk">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini red p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Com Erro</div>
+                <div class="kpi-num text-danger" id="kErros">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini p-3" style="border-left-color:#d69e2e">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Em Atenção</div>
+                <div class="kpi-num" style="color:#d69e2e" id="kAten">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini yellow p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Erros OH Exp.</div>
+                <div class="kpi-num text-warning" id="kErrExp">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini yellow p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Erros OH Prod.</div>
+                <div class="kpi-num text-warning" id="kErrProd">—</div>
+            </div>
+        </div>
+        <div class="col-xl col-lg-4 col-6">
+            <div class="card kpi-mini yellow p-3">
+                <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Erros OH Total</div>
+                <div class="kpi-num text-warning" id="kErrTot">—</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Barra de ações da tabela ───────────────────────────────────── -->
+    <div id="actionBar" style="display:none" class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+        <input type="text" class="form-control form-control-sm" style="width:240px"
+               id="filtroTabela" placeholder="Filtrar ID, contrato, fase...">
+        <select class="form-select form-select-sm" style="width:160px"
+                id="filtroStatus" onchange="filtrarStatus()">
+            <option value="">Todos os status</option>
+            <option value="OK">✅ OK</option>
+            <option value="ERRO">❌ Com erro</option>
+            <option value="ATENCAO">⚠ Atenção</option>
+        </select>
+        <select class="form-select form-select-sm" style="width:160px"
+                id="filtroBloco" onchange="filtrarStatus()">
+            <option value="">Todos os blocos</option>
+            <option value="RAIZ">Raiz</option>
+            <option value="CORREÇÃO">Correções</option>
+        </select>
+        <button class="btn btn-success btn-sm ms-auto" id="btnCsv">
+            <i class="fas fa-download me-1"></i>Exportar CSV
+        </button>
+    </div>
+
+    <!-- ── Tabela de resultados ────────────────────────────────────────── -->
+    <div id="tabelaWrap" style="display:none" class="card shadow-sm">
+        <div class="table-fixed">
+            <table class="table table-hover table-sm mb-0" id="tblOH">
+                <thead>
+                    <tr>
+                        <!-- Identificação -->
+                        <th class="sec-info">ID CCO</th>
+                        <th class="sec-info">Bloco</th>
+                        <th class="sec-info">Contrato</th>
+                        <th class="sec-info">Remessa</th>
+                        <th class="sec-info">Fase</th>
+                        <th class="sec-info">Mês/Ano</th>
+                        <th class="sec-info">Data Rec.</th>
+                        <!-- OH Exploração -->
+                        <th class="sec-exp">Base Exp.</th>
+                        <th class="sec-exp">OH Exp.</th>
+                        <th class="sec-exp">% Calc.</th>
+                        <th class="sec-exp">% Esp.</th>
+                        <th class="sec-exp">Δ Exp.</th>
+                        <th class="sec-exp">OH Exp.</th>
+                        <!-- OH Produção -->
+                        <th class="sec-prod">Base Prod.</th>
+                        <th class="sec-prod">OH Prod.</th>
+                        <th class="sec-prod">% Calc.</th>
+                        <th class="sec-prod">Δ Prod.</th>
+                        <th class="sec-prod">OH Prod.</th>
+                        <!-- OH Total -->
+                        <th class="sec-tot">OH Total</th>
+                        <th class="sec-tot">OH Tot. Esp.</th>
+                        <th class="sec-tot">Δ Total</th>
+                        <th class="sec-tot">OH Total</th>
+                        <!-- Geral -->
+                        <th class="sec-info">Status</th>
+                        <th class="sec-info">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tblBody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted py-2" style="font-size:11px" id="rodapeTabela"></div>
+    </div>
+
+    <!-- ── Mensagem vazia ─────────────────────────────────────────────── -->
+    <div id="semResultado" style="display:none" class="text-center text-muted py-5">
+        <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
+        <p>Nenhuma CCO encontrada com os filtros informados.</p>
+    </div>
+
+</div><!-- /container -->
+
+<!-- ── Loading overlay ─────────────────────────────────────────────────── -->
+<div id="loadingOverlay">
+    <div class="spinner-box">
+        <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem"></div>
+        <div class="fw-semibold">Buscando e verificando OHs...</div>
+        <div class="text-muted" style="font-size:12px">Isso pode levar alguns segundos.</div>
+    </div>
+</div>
+
+<!-- ── Modal de Ajuda ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="modalHelpOH" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--ppsa-gradient)">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-circle-question me-2"></i>Regras de Verificação de OverHeads
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:13px">
+
+                <!-- Status possíveis -->
+                <h6 class="mb-2"><i class="fas fa-traffic-light me-1 text-primary"></i>Status de verificação</h6>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="p-2 rounded border" style="border-color:#c6f6d5!important;background:#f0fff4">
+                            <span class="st-ok">✓ OK</span>
+                            <div class="mt-1 text-muted" style="font-size:12px">Cálculo correto dentro da tolerância.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 rounded border" style="border-color:#fefcbf!important;background:#fffff0">
+                            <span class="st-warn">⚠ ATENÇÃO</span>
+                            <div class="mt-1 text-muted" style="font-size:12px">Situação válida mas sem cálculo de OH. Não é erro.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 rounded border" style="border-color:#fed7d7!important;background:#fff5f5">
+                            <span class="st-err">✗ ERRO</span>
+                            <div class="mt-1 text-muted" style="font-size:12px">Valor diverge do esperado além da tolerância.</div>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-muted mb-3" style="font-size:12px">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Hierarquia: <strong>ERRO</strong> prevalece sobre <strong>ATENÇÃO</strong>, que prevalece sobre <strong>OK</strong>.
+                    O <em>Status Geral</em> reflete o pior sub-status (Exp, Prod ou Total) do bloco.
+                </p>
+
+                <!-- OH Produção -->
+                <h6 class="mb-2"><i class="fas fa-ruler me-1 text-success"></i>OH de Produção — regra simples</h6>
+                <table class="table table-sm table-bordered mb-3">
+                    <thead class="table-light">
+                        <tr><th>Campo</th><th>Base de cálculo</th><th>Taxa</th><th>Tolerância</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>overHeadProducao</code></td>
+                            <td><code>valorReconhecidoProducao</code></td>
+                            <td><strong>Exatamente 1%</strong></td>
+                            <td>±0,005%</td>
+                        </tr>
+                        <tr>
+                            <td><code>overHeadTotal</code></td>
+                            <td><code>overHeadExploracao + overHeadProducao</code></td>
+                            <td>Deve ser a soma exata</td>
+                            <td>±R$ 0,01</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- OH Exploração -->
+                <h6 class="mb-2"><i class="fas fa-layer-group me-1 text-primary"></i>OH de Exploração — faixas progressivas</h6>
+                <p class="mb-2">A taxa não é fixa: depende do <strong>acumulado anual de exploração do contrato</strong> até a data de reconhecimento da CCO.</p>
+                <table class="table table-sm table-bordered mb-2">
+                    <thead class="table-light">
+                        <tr><th>Faixa</th><th>Intervalo acumulado do ano</th><th>Taxa</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span style="display:inline-block;width:12px;height:12px;background:#38a169;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Faixa 1</td>
+                            <td>R$ 0 até R$ 5.000.000</td>
+                            <td><strong>3%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><span style="display:inline-block;width:12px;height:12px;background:#3182ce;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Faixa 2</td>
+                            <td>De R$ 5.000.001 até R$ 15.000.000</td>
+                            <td><strong>2%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><span style="display:inline-block;width:12px;height:12px;background:#805ad5;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Faixa 3</td>
+                            <td>Acima de R$ 15.000.000</td>
+                            <td><strong>1%</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-light border mb-3 py-2" style="font-size:12px">
+                    <i class="fas fa-calculator me-1 text-primary"></i>
+                    Quando uma CCO cruza a fronteira entre duas faixas, o OH é calculado <strong>proporcionalmente</strong>:
+                    a parcela do valor dentro de cada faixa recebe sua respectiva taxa.
+                    O acumulado considera <strong>todas as CCOs do contrato no ano</strong> (todos os campos), ordenadas por data de reconhecimento.
+                    O acumulado reinicia a cada ano-calendário (<code>anoReconhecimento</code>).
+                </div>
+
+                <!-- Casos especiais → ATENÇÃO -->
+                <h6 class="mb-2"><i class="fas fa-triangle-exclamation me-1 text-warning"></i>Casos que geram ATENÇÃO (não ERRO)</h6>
+                <table class="table table-sm table-bordered mb-3">
+                    <thead class="table-light">
+                        <tr><th>Situação</th><th>Campo afetado</th><th>Por quê não é erro</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Base de exploração negativa<br><small class="text-muted"><code>valorReconhecidoExploracao &lt; 0</code></small></td>
+                            <td>OH Exploração</td>
+                            <td>Valor negativo não gera OH — situação contábil válida.</td>
+                        </tr>
+                        <tr>
+                            <td>Base de produção negativa<br><small class="text-muted"><code>valorReconhecidoProducao &lt; 0</code></small></td>
+                            <td>OH Produção</td>
+                            <td>Idem — base negativa não gera OH.</td>
+                        </tr>
+                        <tr>
+                            <td>Origem <strong>AEGV</strong><br><small class="text-muted"><code>origemDosGastos = GASTO_AEGV</code></small></td>
+                            <td>Todos (Exp, Prod, Total)</td>
+                            <td>CCOs desse tipo nunca geram OH — <code>overHead*</code> são sempre 0 por definição.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Casos OK -->
+                <h6 class="mb-2"><i class="fas fa-check-circle me-1 text-success"></i>Casos normais — OK</h6>
+                <ul class="mb-3">
+                    <li>Base zero (<code>valorReconhecido* = 0</code>) e OH zero — ambos zerados é correto.</li>
+                    <li>CCO de produção pura: base de exploração zero, OH de exploração zero — OK.</li>
+                </ul>
+
+                <!-- Blocos verificados -->
+                <h6 class="mb-2"><i class="fas fa-layer-group me-1 text-primary"></i>Blocos verificados por CCO</h6>
+                <ul class="mb-3">
+                    <li><strong>RAIZ</strong>: campos de OH no nível principal do documento.</li>
+                    <li><strong>CORREÇÃO [tipo/subTipo] [data]</strong>: cada entrada de <code>correcoesMonetarias</code> que contenha campos de OH populados (IPCA, RETIFICACAO, RECUPERACAO, etc.).</li>
+                </ul>
+
+                <!-- Leitura da tabela -->
+                <h6 class="mb-2"><i class="fas fa-table-columns me-1 text-primary"></i>Leitura da tabela de resultados</h6>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <div class="p-2 rounded" style="background:#ebf8ff">
+                            <strong style="color:#2b6cb0">Colunas azuis</strong><br>
+                            OH de Exploração: base, valor, % calculado, % esperado, Δ e status.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 rounded" style="background:#f0fff4">
+                            <strong style="color:#276749">Colunas verdes</strong><br>
+                            OH de Produção: base, valor, % calculado, Δ e status.
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 rounded" style="background:#faf5ff">
+                            <strong style="color:#553c9a">Colunas roxas</strong><br>
+                            OH Total: valor, esperado, Δ e status.
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info py-2 mb-2" style="font-size:12px">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Δ (diferença)</strong>: valor real menos o esperado.
+                    Positivo = OH acima do esperado; negativo = OH abaixo.
+                    Diferenças dentro da tolerância aparecem como <span class="st-ok">✓ OK</span>.
+                </div>
+                <div class="alert alert-warning py-2 mb-0" style="font-size:12px">
+                    <i class="fas fa-layer-group me-1"></i>
+                    <strong>Botão "Faixas"</strong>: aparece nas linhas com <span class="st-err">✗ ERRO</span> em OH de Exploração.
+                    Abre a tela de análise detalhada mostrando o cálculo por faixas progressivas para todo o contrato no ano.
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = {
+    contratos   : "{{ url_for('verificacao_oh.api_contratos') }}",
+    campos      : "{{ url_for('verificacao_oh.api_campos') }}",
+    fases       : "{{ url_for('verificacao_oh.api_fases') }}",
+    verificar   : "{{ url_for('verificacao_oh.api_verificar') }}",
+    csv         : "{{ url_for('verificacao_oh.download_csv') }}",
+    analise_exp : "{{ url_for('verificacao_oh.api_analise_exp') }}",
+};
+const URL_ANALISE_EXP = "{{ url_analise_exp }}";
+
+let _todosResultados = [];
+let _sid = '';
+
+function dbEnv() {
+    return document.querySelector('input[name="dbEnv"]:checked')?.value || 'dev';
+}
+
+// ── Inicialização ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    await carregarContratos();
+    await carregarFases();
+    document.getElementById('contratoCpp').addEventListener('change', carregarCampos);
+    document.getElementById('btnVerificar').addEventListener('click', verificar);
+    document.getElementById('btnLimpar').addEventListener('click', limpar);
+    document.getElementById('btnCsv').addEventListener('click', () => {
+        window.location = API.csv + (_sid ? `?sid=${_sid}` : '');
+    });
+    document.getElementById('filtroTabela').addEventListener('input', filtrarTabela);
+    document.getElementById('filtroStatus').addEventListener('change', filtrarStatus);
+    document.getElementById('filtroBloco').addEventListener('change', filtrarStatus);
+    // Recarregar contratos/fases ao trocar banco
+    document.querySelectorAll('input[name="dbEnv"]').forEach(r => r.addEventListener('change', async () => {
+        await carregarContratos();
+        await carregarFases();
+    }));
+});
+
+async function carregarContratos() {
+    const r = await fetch(`${API.contratos}?db=${dbEnv()}`);
+    const d = await r.json();
+    const sel = document.getElementById('contratoCpp');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.contratos || []).forEach(c => sel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+}
+
+async function carregarCampos() {
+    const contrato = document.getElementById('contratoCpp').value;
+    const r = await fetch(`${API.campos}?db=${dbEnv()}&contrato=${encodeURIComponent(contrato)}`);
+    const d = await r.json();
+    const sel = document.getElementById('campo');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.campos || []).forEach(c => sel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+}
+
+async function carregarFases() {
+    const r = await fetch(`${API.fases}?db=${dbEnv()}`);
+    const d = await r.json();
+    const sel = document.getElementById('faseRemessa');
+    sel.innerHTML = '<option value="">Todas</option>';
+    (d.fases || []).forEach(f => sel.insertAdjacentHTML('beforeend', `<option value="${f}">${f}</option>`));
+}
+
+// ── Verificação principal ──────────────────────────────────────────────────
+async function verificar() {
+    const filtros = {
+        db               : dbEnv(),
+        contratoCpp      : document.getElementById('contratoCpp').value,
+        campo            : document.getElementById('campo').value,
+        remessa          : document.getElementById('remessa').value,
+        remessaExposicao : document.getElementById('remessaExposicao').value,
+        faseRemessa      : document.getElementById('faseRemessa').value,
+        origemDosGastos  : document.getElementById('origemDosGastos').value,
+        mesAnoReferencia : document.getElementById('mesAnoReferencia').value,
+        flgRecuperado    : document.getElementById('flgRecuperado').value,
+        limite           : document.getElementById('limite').value,
+    };
+
+    mostrarLoading(true);
+    try {
+        const r = await fetch(API.verificar, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(filtros),
+        });
+        const d = await r.json();
+        mostrarLoading(false);
+
+        if (!d.success) {
+            alert('Erro: ' + d.error);
+            return;
+        }
+        _todosResultados = d.resultados || [];
+        _sid = d.sid || '';
+        renderizarKpis(d.estatisticas || {});
+        renderizarTabela(_todosResultados);
+    } catch (e) {
+        mostrarLoading(false);
+        alert('Erro de comunicação: ' + e);
+    }
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────────
+function renderizarKpis(st) {
+    document.getElementById('kCcos').textContent    = st.ccos_unicas ?? '—';
+    document.getElementById('kTotal').textContent   = st.total_linhas ?? '—';
+    document.getElementById('kOk').textContent      = st.total_ok ?? '—';
+    document.getElementById('kPctOk').textContent   = `${st.pct_ok ?? 0}% das linhas`;
+    document.getElementById('kErros').textContent   = st.total_erros ?? '—';
+    document.getElementById('kAten').textContent    = st.total_atencao ?? '—';
+    document.getElementById('kErrExp').textContent  = st.erros_exploracao ?? '—';
+    document.getElementById('kErrProd').textContent = st.erros_producao ?? '—';
+    document.getElementById('kErrTot').textContent  = st.erros_total_oh ?? '—';
+    document.getElementById('kpiBar').style.removeProperty('display');
+    document.getElementById('kpiBar').style.display = '';
+}
+
+// ── Tabela ─────────────────────────────────────────────────────────────────
+function fmt(v, dec=2) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString('pt-BR', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+
+function badge(status) {
+    if (status === 'OK')      return `<span class="st-ok">✓ OK</span>`;
+    if (status === 'ERRO')    return `<span class="st-err">✗ ERRO</span>`;
+    if (status === 'ATENCAO') return `<span class="st-warn">⚠ ATENÇÃO</span>`;
+    return `<span class="st-na">${status}</span>`;
+}
+
+function abrirAnaliseFaixas(ccoId) {
+    const db = dbEnv();
+    window.open(`${URL_ANALISE_EXP}?cco_id=${encodeURIComponent(ccoId)}&db=${db}`, '_blank');
+}
+
+function renderizarTabela(dados) {
+    const tbody = document.getElementById('tblBody');
+    tbody.innerHTML = '';
+    document.getElementById('tabelaWrap').style.display = '';
+    document.getElementById('actionBar').style.display  = '';
+    document.getElementById('semResultado').style.display = 'none';
+
+    if (!dados.length) {
+        document.getElementById('tabelaWrap').style.display = 'none';
+        document.getElementById('semResultado').style.display = '';
+        document.getElementById('rodapeTabela').textContent = '';
+        return;
+    }
+
+    dados.forEach((r, i) => {
+        const rowClass = r.status_geral === 'ERRO' ? 'row-err'
+                       : r.status_geral === 'ATENCAO' ? 'row-warn' : '';
+        const origem = r.origem || 'RAIZ';
+        const origemBadge = origem === 'RAIZ'
+            ? `<span class="badge bg-secondary" style="font-size:10px">RAIZ</span>`
+            : `<span class="badge bg-info text-dark" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;display:inline-block" title="${origem}">CORREÇÃO</span>`;
+
+        const mostrarFaixas = r.status_exploracao === 'ERRO' && (r.base_exploracao || 0) > 0.01;
+        const btnFaixas = mostrarFaixas
+            ? `<button onclick="abrirAnaliseFaixas('${r.cco_id}')" class="btn btn-outline-warning btn-sm"
+                       style="font-size:10px;padding:2px 6px" title="Analisar OH por faixas progressivas">
+                   <i class="fas fa-layer-group me-1"></i>Faixas
+               </button>`
+            : '';
+
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr class="${rowClass}" data-status="${r.status_geral}" data-bloco="${origem}">
+            <td class="mono" style="font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${r.cco_id}">${r.cco_id}</td>
+            <td>${origemBadge}</td>
+            <td>${r.contrato}</td>
+            <td class="mono">${r.remessa}</td>
+            <td>${r.faseRemessa}</td>
+            <td class="mono">${r.mesAnoReferencia}</td>
+            <td class="text-muted">${r.dataReconhecimento}</td>
+            <!-- OH Exploração -->
+            <td class="mono text-end">${fmt(r.base_exploracao)}</td>
+            <td class="mono text-end">${fmt(r.oh_exploracao)}</td>
+            <td class="mono text-end">${r.pct_exploracao !== null ? fmt(r.pct_exploracao, 4)+'%' : '—'}</td>
+            <td class="mono text-end">${r.taxa_esperada_exp !== null ? r.taxa_esperada_exp+'%' : '—'}</td>
+            <td class="mono text-end ${Math.abs(r.diferenca_exploracao)>0.01?'text-danger':''}">${fmt(r.diferenca_exploracao, 4)}</td>
+            <td>${badge(r.status_exploracao)}</td>
+            <!-- OH Produção -->
+            <td class="mono text-end">${fmt(r.base_producao)}</td>
+            <td class="mono text-end">${fmt(r.oh_producao)}</td>
+            <td class="mono text-end">${r.pct_producao !== null ? fmt(r.pct_producao, 4)+'%' : '—'}</td>
+            <td class="mono text-end ${Math.abs(r.diferenca_producao)>0.01?'text-danger':''}">${fmt(r.diferenca_producao, 4)}</td>
+            <td>${badge(r.status_producao)}</td>
+            <!-- OH Total -->
+            <td class="mono text-end">${fmt(r.oh_total)}</td>
+            <td class="mono text-end">${fmt(r.oh_total_esperado)}</td>
+            <td class="mono text-end ${Math.abs(r.diferenca_total)>0.01?'text-danger':''}">${fmt(r.diferenca_total, 4)}</td>
+            <td>${badge(r.status_total)}</td>
+            <!-- Geral -->
+            <td>${badge(r.status_geral)}</td>
+            <td>${btnFaixas}</td>
+        </tr>`);
+    });
+
+    const erros   = dados.filter(r => r.status_geral === 'ERRO').length;
+    const atencoes = dados.filter(r => r.status_geral === 'ATENCAO').length;
+    document.getElementById('rodapeTabela').textContent =
+        `${dados.length} linha(s) exibida(s) — ${erros} com erro — ${atencoes} com atenção`;
+}
+
+// ── Filtros da tabela ──────────────────────────────────────────────────────
+function filtrarTabela() {
+    const q = document.getElementById('filtroTabela').value.toLowerCase();
+    filtrarStatus(q);
+}
+
+function filtrarStatus(q) {
+    if (typeof q !== 'string') q = document.getElementById('filtroTabela').value.toLowerCase();
+    const status = document.getElementById('filtroStatus').value;
+    const bloco  = document.getElementById('filtroBloco').value;
+
+    document.querySelectorAll('#tblBody tr').forEach(tr => {
+        const texto  = tr.textContent.toLowerCase();
+        const trSt   = tr.dataset.status || '';
+        const trBl   = tr.dataset.bloco  || '';
+        const okText = !q || texto.includes(q);
+        const okSt   = !status || trSt === status;
+        const okBl   = !bloco  || trBl.includes(bloco);
+        tr.style.display = (okText && okSt && okBl) ? '' : 'none';
+    });
+
+    const visiveis = [...document.querySelectorAll('#tblBody tr')]
+        .filter(tr => tr.style.display !== 'none').length;
+    document.getElementById('rodapeTabela').textContent =
+        `${visiveis} linha(s) exibida(s)`;
+}
+
+// ── Utilitários ────────────────────────────────────────────────────────────
+function limpar() {
+    ['contratoCpp','campo','faseRemessa','origemDosGastos','flgRecuperado','limite'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'limite' ? '200' : '';
+    });
+    ['remessa','remessaExposicao','mesAnoReferencia','filtroTabela'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('tabelaWrap').style.display = 'none';
+    document.getElementById('actionBar').style.display = 'none';
+    document.getElementById('semResultado').style.display = 'none';
+    document.getElementById('kpiBar').style.display = 'none';
+    _todosResultados = [];
+}
+
+function mostrarLoading(show) {
+    document.getElementById('loadingOverlay').classList.toggle('show', show);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block styles %}
+<style>
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.page-header { background: var(--ppsa-gradient); color: white; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+
+/* ── Barra de faixas (topo) ──────────────────────────────────────────────── */
+.faixa-bar { height: 36px; border-radius: 8px; overflow: hidden; display: flex; position: relative; margin-bottom: 8px; }
+.faixa-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; transition: all .2s; min-width: 60px; }
+.faixa-seg.f1 { background: #805ad5; }
+.faixa-seg.f2 { background: #3182ce; }
+.faixa-seg.f3 { background: #38a169; }
+
+.acum-bar { height: 10px; border-radius: 4px; background: #e2e8f0; position: relative; overflow: hidden; }
+.acum-fill { height: 100%; background: linear-gradient(90deg,#805ad5,#3182ce,#38a169); border-radius: 4px; transition: width .6s ease; }
+.acum-labels { display: flex; justify-content: space-between; font-size: 10px; color: #718096; margin-top: 4px; }
+
+/* ── Tabela ──────────────────────────────────────────────────────────────── */
+.table-fixed { max-height: 580px; overflow-y: auto; }
+.table-fixed thead th {
+    position: sticky; top: 0; z-index: 5;
+    background: #f8fafc; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .4px;
+    white-space: nowrap;
+}
+.table td { font-size: 11.5px; vertical-align: middle; white-space: nowrap; }
+.mono { font-family: 'Courier New', monospace; }
+
+/* Bootstrap 5 aplica estilos no td, não no tr → precisamos targetar > td */
+.row-ref > td  { background-color: #ebf8ff !important; font-weight: 600; }
+.row-err > td  { background-color: #fff5f5 !important; }
+.row-warn > td { background-color: #fffff0 !important; }
+
+.table-hover .row-ref:hover > td  { background-color: #bee3f8 !important; }
+.table-hover .row-err:hover > td   { background-color: #fed7d780 !important; }
+.table-hover .row-warn:hover > td  { background-color: #fefcbf80 !important; }
+
+.st-ok   { background:#c6f6d5; color:#22543d; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-err  { background:#fed7d7; color:#742a2a; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-warn { background:#fefcbf; color:#744210; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-na   { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+
+.faixa-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.fb1 { background: #c6f6d5; color: #276749; }
+.fb2 { background: #bee3f8; color: #2c5282; }
+.fb3 { background: #e9d8fd; color: #553c9a; }
+
+/* Separador de transição de faixa */
+.sep-faixa > td {
+    border-top: 2px dashed #cbd5e0 !important;
+    background-color: #f7fafc !important;
+    color: #718096;
+    padding: 5px 0 !important;
+}
+
+/* ── Mini barra de faixas por linha ─────────────────────────────────────── */
+.mini-faixa-bar { display: flex; gap: 2px; align-items: center; }
+.mini-faixa-seg { height: 16px; border-radius: 3px; flex-shrink: 0; }
+
+/* ── OH Esperado com tooltip ─────────────────────────────────────────────── */
+.oh-tip { cursor: help; border-bottom: 1px dashed #718096; }
+
+/* ── Tooltip balão (Bootstrap customClass) ───────────────────────────────── */
+.tooltip-faixas .tooltip-inner {
+    max-width: 340px;
+    text-align: left;
+    padding: 0;
+    background: #2d3748;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+.tip-table { width: 100%; border-collapse: collapse; font-size: 12px; color: #e2e8f0; }
+.tip-table thead tr { background: rgba(255,255,255,.08); }
+.tip-table th { padding: 6px 12px; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+.tip-table td { padding: 5px 12px; border-top: 1px solid rgba(255,255,255,.06); white-space: nowrap; }
+.tip-table tfoot td { border-top: 1px solid rgba(255,255,255,.18); font-weight: 700; background: rgba(255,255,255,.05); }
+.tip-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+
+/* ── Loading / erro ──────────────────────────────────────────────────────── */
+#loadingDiv { text-align: center; padding: 60px 0; }
+#errorDiv   { display: none; }
+
+/* ── Totais ──────────────────────────────────────────────────────────────── */
+tfoot td { font-weight: 700; font-size: 12px; background: #f8fafc; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1700px;">
+
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <nav aria-label="breadcrumb" class="mb-1">
+                    <ol class="breadcrumb mb-0" style="font-size:12px;--bs-breadcrumb-divider-color:rgba(255,255,255,.6);color:rgba(255,255,255,.8)">
+                        <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}" class="text-white-50">Portal</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_voltar }}" class="text-white-50">Verificação de OH</a></li>
+                        <li class="breadcrumb-item active text-white">Análise por Faixas</li>
+                    </ol>
+                </nav>
+                <h1 class="h4 mb-0">
+                    <i class="fas fa-layer-group me-2"></i>
+                    Análise de OH Exploração por Faixas
+                </h1>
+                <div id="subTitulo" class="mt-1 opacity-75" style="font-size:13px">Carregando...</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-light btn-sm" id="btnCsv" style="display:none" onclick="exportarCSV()">
+                    <i class="fas fa-download me-1"></i>Exportar CSV
+                </button>
+                <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#modalHelpFaixas">
+                    <i class="fas fa-circle-question me-1"></i>Ajuda
+                </button>
+                <a href="{{ url_voltar }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingDiv">
+        <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem"></div>
+        <div class="fw-semibold">Calculando faixas progressivas...</div>
+        <div class="text-muted" style="font-size:12px">Buscando todas as CCOs do contrato no ano.</div>
+    </div>
+
+    <!-- Erro -->
+    <div id="errorDiv" class="alert alert-danger"></div>
+
+    <!-- Conteúdo (oculto até carregar) -->
+    <div id="conteudo" style="display:none">
+
+        <!-- Barra de faixas progressivas -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body pb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <strong style="font-size:13px"><i class="fas fa-layer-group me-1 text-primary"></i>Faixas Progressivas de OH Exploração</strong>
+                    <span class="text-muted" style="font-size:12px">Acumulado anual do contrato</span>
+                </div>
+
+                <!-- Legenda das faixas -->
+                <div class="faixa-bar mb-3" id="faixaBar">
+                    <div class="faixa-seg f1" id="segF1" style="width:33.3%">3% (até R$5M)</div>
+                    <div class="faixa-seg f2" id="segF2" style="width:33.3%">2% (R$5M–R$15M)</div>
+                    <div class="faixa-seg f3" id="segF3" style="width:33.4%">1% (acima de R$15M)</div>
+                </div>
+
+                <!-- Barra de acumulado -->
+                <div class="mb-1" style="font-size:11px;color:#4a5568;font-weight:600">Posição do acumulado anual:</div>
+                <div class="acum-bar">
+                    <div class="acum-fill" id="acumFill" style="width:0%"></div>
+                </div>
+                <div class="acum-labels">
+                    <span>R$ 0</span>
+                    <span>R$ 5M</span>
+                    <span>R$ 15M</span>
+                    <span id="acumFimLabel">—</span>
+                </div>
+                <div class="text-center mt-1" style="font-size:11px;color:#4a5568">
+                    Acumulado total do ano: <strong id="acumTotalLabel">—</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela principal -->
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-fixed">
+                    <table class="table table-hover table-sm mb-0" id="tblFaixas">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Data Rec.</th>
+                                <th>ID CCO</th>
+                                <th>Campo</th>
+                                <th>Remessa</th>
+                                <th>Fase</th>
+                                <th>Origem</th>
+                                <th class="text-end">Val. Exp. (R$)</th>
+                                <th class="text-end">Acum. Antes (R$)</th>
+                                <th class="text-end">Acum. Depois (R$)</th>
+                                <th>Faixas</th>
+                                <th class="text-end">OH Esperado (R$)</th>
+                                <th class="text-end">OH Real (R$)</th>
+                                <th class="text-end">Δ (R$)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblBody"></tbody>
+                        <tfoot id="tblFoot"></tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legenda -->
+        <div class="d-flex gap-3 mt-3 flex-wrap align-items-center" style="font-size:11px;color:#4a5568">
+            <div><span style="display:inline-block;width:14px;height:14px;background: #805ad5;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Faixa 1 — 3% (R$0 a R$5M)</div>
+            <div><span style="display:inline-block;width:14px;height:14px;background: #3182ce;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Faixa 2 — 2% (R$5M a R$15M)</div>
+            <div><span style="display:inline-block;width:14px;height:14px;background: #38a169;border-radius:3px;vertical-align:middle;margin-right:4px"></span>Faixa 3 — 1% (acima de R$15M)</div>
+            <div class="ms-2 text-muted"><i class="fas fa-circle-info me-1"></i>Passe o mouse sobre "OH Esperado" para ver o cálculo por faixa</div>
+            <div style="margin-left:auto">
+                <span style="background:#ebf8ff;padding:2px 8px;border-radius:3px;border-left:3px solid #3182ce">
+                    <i class="fas fa-star text-primary me-1" style="font-size:9px"></i>CCO de referência
+                </span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Modal de Ajuda ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="modalHelpFaixas" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--ppsa-gradient)">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-circle-question me-2"></i>Análise de OH Exploração por Faixas — Guia
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:13px">
+
+                <!-- O que é esta tela -->
+                <h6 class="mb-2"><i class="fas fa-magnifying-glass me-1 text-primary"></i>O que esta tela mostra</h6>
+                <p class="mb-3">
+                    Esta tela exibe <strong>todas as CCOs do mesmo contrato no mesmo ano</strong> (campo <code>anoReconhecimento</code>),
+                    ordenadas cronologicamente por data de reconhecimento.
+                    O objetivo é reproduzir passo a passo o cálculo de OH de Exploração, mostrando como o acumulado anual
+                    avança e em qual faixa progressiva cada CCO se encaixa.
+                </p>
+                <div class="alert alert-light border py-2 mb-3" style="font-size:12px">
+                    <i class="fas fa-info-circle me-1 text-primary"></i>
+                    O acumulado considera <strong>todas as CCOs do contrato</strong> (independente do campo/área), pois as faixas
+                    são cumulativas para o contrato inteiro. O acumulado reinicia todo ano (<code>anoReconhecimento</code>).
+                </div>
+
+                <!-- Faixas progressivas -->
+                <h6 class="mb-2"><i class="fas fa-layer-group me-1 text-primary"></i>Faixas progressivas de OH Exploração</h6>
+                <table class="table table-sm table-bordered mb-2">
+                    <thead class="table-light">
+                        <tr><th>Cor</th><th>Faixa</th><th>Intervalo do acumulado anual</th><th>Taxa</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span style="display:inline-block;width:28px;height:14px;background:#805ad5;border-radius:3px"></span></td>
+                            <td>Faixa 1</td>
+                            <td>R$ 0 até R$ 5.000.000</td>
+                            <td><strong>3%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><span style="display:inline-block;width:28px;height:14px;background:#3182ce;border-radius:3px"></span></td>
+                            <td>Faixa 2</td>
+                            <td>De R$ 5.000.001 até R$ 15.000.000</td>
+                            <td><strong>2%</strong></td>
+                        </tr>
+                        <tr>
+                            <td><span style="display:inline-block;width:28px;height:14px;background:#38a169;border-radius:3px"></span></td>
+                            <td>Faixa 3</td>
+                            <td>Acima de R$ 15.000.000</td>
+                            <td><strong>1%</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-light border mb-3 py-2" style="font-size:12px">
+                    <i class="fas fa-calculator me-1 text-primary"></i>
+                    <strong>Cálculo proporcional:</strong> quando uma CCO cruza a fronteira entre faixas
+                    (ex.: acumulado em R$4M e valor de R$3M — parte entra na Faixa 1 a 3% e parte na Faixa 2 a 2%),
+                    o OH é calculado separadamente para cada porção.<br>
+                    <em>Fórmula por faixa: <code>OH = max(0, min(acum + val, fim_faixa) − max(acum, início_faixa)) × taxa</code></em>
+                </div>
+
+                <!-- Colunas da tabela -->
+                <h6 class="mb-2"><i class="fas fa-table-columns me-1 text-primary"></i>Colunas da tabela</h6>
+                <table class="table table-sm table-bordered mb-3">
+                    <thead class="table-light">
+                        <tr><th>Coluna</th><th>Descrição</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Val. Exp.</strong></td><td><code>valorReconhecidoExploracao</code> — base de cálculo desta CCO.</td></tr>
+                        <tr><td><strong>Acum. Antes</strong></td><td>Soma acumulada de todas as CCOs anteriores do contrato no ano.</td></tr>
+                        <tr><td><strong>Acum. Depois</strong></td><td>Acumulado após incluir esta CCO.</td></tr>
+                        <tr><td><strong>Faixas</strong></td><td>Barra colorida proporcional: cada segmento representa a parcela do valor que caiu em cada faixa. Passe o mouse em "OH Esperado" para ver os detalhes.</td></tr>
+                        <tr><td><strong>OH Esperado</strong></td><td>OH calculado pelas faixas. <em>Passe o mouse</em> para ver o breakdown por faixa em tabela detalhada.</td></tr>
+                        <tr><td><strong>OH Real</strong></td><td><code>overHeadExploracao</code> gravado no documento MongoDB.</td></tr>
+                        <tr><td><strong>Δ (diferença)</strong></td><td>OH Real − OH Esperado. Vermelho quando |Δ| &gt; R$ 0,01.</td></tr>
+                    </tbody>
+                </table>
+
+                <!-- Status -->
+                <h6 class="mb-2"><i class="fas fa-traffic-light me-1 text-primary"></i>Status de cada linha</h6>
+                <table class="table table-sm table-bordered mb-3">
+                    <thead class="table-light">
+                        <tr><th>Status</th><th>Condição</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="st-ok">✓ OK</span></td>
+                            <td>|Δ| ≤ R$ 0,01 — OH gravado bate com o calculado pelas faixas.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="st-err">✗ ERRO</span></td>
+                            <td>|Δ| &gt; R$ 0,01 — divergência real entre OH esperado e gravado.</td>
+                        </tr>
+                        <tr>
+                            <td><span class="st-warn">⚠ ATENÇÃO</span></td>
+                            <td>Base negativa ou origem <strong>AEGV</strong> — OH não se aplica a esta CCO, não é erro de cálculo.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Destaques visuais -->
+                <h6 class="mb-2"><i class="fas fa-palette me-1 text-primary"></i>Destaques visuais</h6>
+                <ul class="mb-3">
+                    <li>
+                        <span style="background:#ebf8ff;padding:1px 8px;border-radius:3px;border-left:3px solid #3182ce;font-size:12px">
+                            <i class="fas fa-star text-primary me-1" style="font-size:9px"></i>Linha azul
+                        </span>
+                        — CCO de referência (a CCO que originou a análise).
+                    </li>
+                    <li class="mt-1">
+                        <span style="background:#fff5f5;padding:1px 8px;border-radius:3px;border-left:3px solid #f56565;font-size:12px">Linha vermelha</span>
+                        — CCO com ERRO no cálculo.
+                    </li>
+                    <li class="mt-1">
+                        <span style="background:#fffff0;padding:1px 8px;border-radius:3px;border-left:3px solid #ecc94b;font-size:12px">Linha amarela</span>
+                        — CCO em ATENÇÃO (base negativa ou AEGV).
+                    </li>
+                    <li class="mt-1">
+                        <span style="border-top:2px dashed #e2e8f0;display:inline-block;width:60px;vertical-align:middle;margin-right:6px"></span>
+                        <em>Linha tracejada</em> — separador visual quando o acumulado cruza R$5M ou R$15M (transição de faixa).
+                    </li>
+                </ul>
+
+                <!-- Tooltip -->
+                <h6 class="mb-2"><i class="fas fa-comment me-1 text-primary"></i>Tooltip de "OH Esperado"</h6>
+                <p class="mb-3">
+                    Ao passar o mouse sobre o valor de <strong>OH Esperado</strong>, aparece um balão com a tabela detalhada do cálculo:
+                    para cada faixa utilizada, mostra o valor que caiu naquela faixa e o OH correspondente.
+                    Isso permite validar manualmente o cálculo.
+                </p>
+
+                <!-- CSV -->
+                <h6 class="mb-2"><i class="fas fa-download me-1 text-primary"></i>Exportar CSV</h6>
+                <p class="mb-0">
+                    O botão <strong>Exportar CSV</strong> gera um arquivo com todas as colunas da tabela mais o detalhamento
+                    por faixa (<em>Valor Faixa 3%</em>, <em>OH Faixa 3%</em>, <em>Valor Faixa 2%</em>, etc.),
+                    separadas por ponto-e-vírgula e com BOM UTF-8 para compatibilidade com Excel.
+                </p>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CCO_ID     = "{{ cco_id }}";
+const DB_ENV     = "{{ db_env }}";
+const URL_API    = "{{ url_api_analise }}";
+const URL_VOLTAR = "{{ url_voltar }}";
+
+let _linhas   = [];
+let _dadosMeta = { contrato: '', ano: '' };
+const _tipMap  = {};   // id → HTML tooltip
+
+// ── Helpers numéricos ──────────────────────────────────────────────────────
+function fmt(v, dec=2) {
+    if (v === null || v === undefined || v === '') return '—';
+    return Number(v).toLocaleString('pt-BR', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+}
+
+function brf(v, dec=4) {
+    return Number(v || 0).toFixed(dec).replace('.', ',');
+}
+
+// ── Helpers de faixa ───────────────────────────────────────────────────────
+function faixaColor(taxa_pct) {
+    if (taxa_pct === 3) return '#805ad5';
+    if (taxa_pct === 2) return '#3182ce';
+    return '#38a169';
+}
+
+function badge(status) {
+    if (status === 'OK')      return `<span class="st-ok">✓ OK</span>`;
+    if (status === 'ERRO')    return `<span class="st-err">✗ ERRO</span>`;
+    if (status === 'ATENCAO') return `<span class="st-warn">⚠ ATENÇÃO</span>`;
+    return `<span class="st-na">${status || '—'}</span>`;
+}
+
+// Mini barra colorida proporcional às fatias
+function buildFaixaBar(fatias) {
+    if (!fatias || !fatias.length) {
+        return '<span class="text-muted" style="font-size:10px">—</span>';
+    }
+    const total = fatias.reduce((s, f) => s + f.valor_na_faixa, 0);
+    if (total <= 0) return '<span class="text-muted" style="font-size:10px">—</span>';
+    const BAR_W = 64;
+    const segs = fatias.map(f => {
+        const w = Math.max(8, Math.round((f.valor_na_faixa / total) * BAR_W));
+        const c = faixaColor(f.taxa_pct);
+        return `<div class="mini-faixa-seg" style="width:${w}px;background:${c}" title="${f.taxa_pct}%"></div>`;
+    }).join('');
+    return `<div class="mini-faixa-bar">${segs}</div>`;
+}
+
+// HTML do tooltip balão com tabela de faixas
+function buildTooltipHtml(fatias) {
+    if (!fatias || !fatias.length) return '';
+    const rows = fatias.map(f => {
+        const c = faixaColor(f.taxa_pct);
+        return `<tr>
+            <td><span class="tip-dot" style="background:${c}"></span>${f.taxa_pct}%</td>
+            <td style="text-align:right">R$&nbsp;${fmt(f.valor_na_faixa)}</td>
+            <td style="text-align:right">R$&nbsp;${fmt(f.oh_contribuicao, 4)}</td>
+        </tr>`;
+    }).join('');
+    const totalOh = fatias.reduce((s, f) => s + f.oh_contribuicao, 0);
+    return `<table class="tip-table">
+        <thead><tr>
+            <th>Faixa</th>
+            <th style="text-align:right">Valor na faixa</th>
+            <th style="text-align:right">OH gerado</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+            <td>Total</td>
+            <td></td>
+            <td style="text-align:right">R$&nbsp;${fmt(totalOh, 4)}</td>
+        </tr></tfoot>
+    </table>`;
+}
+
+// Inicializa os tooltips Bootstrap após renderizar o DOM
+function initTooltips() {
+    Object.entries(_tipMap).forEach(([id, html]) => {
+        const el = document.getElementById(id);
+        if (!el || !html) return;
+        const existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+        new bootstrap.Tooltip(el, {
+            html: true,
+            sanitize: false,
+            title: html,
+            placement: 'auto',
+            trigger: 'hover focus',
+            customClass: 'tooltip-faixas',
+        });
+    });
+}
+
+// ── Barra de acumulado ─────────────────────────────────────────────────────
+function renderBarra(acumTotal) {
+    const max = Math.max(acumTotal * 1.1, 16000000);
+    const pct = Math.min(100, (acumTotal / max) * 100);
+    document.getElementById('acumFill').style.width     = pct + '%';
+    document.getElementById('acumTotalLabel').textContent = 'R$ ' + fmt(acumTotal);
+    document.getElementById('acumFimLabel').textContent   = 'R$ ' + fmt(max);
+}
+
+// ── Carga e render ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!CCO_ID) {
+        document.getElementById('loadingDiv').style.display = 'none';
+        document.getElementById('errorDiv').style.display   = '';
+        document.getElementById('errorDiv').textContent     = 'Parâmetro cco_id ausente.';
+        return;
+    }
+
+    try {
+        const r = await fetch(`${URL_API}?cco_id=${encodeURIComponent(CCO_ID)}&db=${DB_ENV}`);
+        const d = await r.json();
+
+        document.getElementById('loadingDiv').style.display = 'none';
+
+        if (!d.success) {
+            document.getElementById('errorDiv').style.display = '';
+            document.getElementById('errorDiv').textContent   = 'Erro: ' + d.error;
+            return;
+        }
+
+        _linhas    = d.linhas || [];
+        _dadosMeta = { contrato: d.contrato, ano: d.ano };
+
+        document.getElementById('subTitulo').textContent =
+            `Contrato: ${d.contrato}  |  Ano: ${d.ano}  |  Banco: ${DB_ENV.toUpperCase()}`;
+        document.title = `Faixas OH — ${d.contrato} / ${d.ano}`;
+
+        renderBarra(d.acumulado_total);
+        renderTabela(_linhas);
+
+        document.getElementById('conteudo').style.display = '';
+        document.getElementById('btnCsv').style.display   = '';
+    } catch (e) {
+        document.getElementById('loadingDiv').style.display = 'none';
+        document.getElementById('errorDiv').style.display   = '';
+        document.getElementById('errorDiv').textContent     = 'Erro de comunicação: ' + e;
+    }
+});
+
+// ── Renderização da tabela ─────────────────────────────────────────────────
+function renderTabela(linhas) {
+    const tbody = document.getElementById('tblBody');
+    const tfoot = document.getElementById('tblFoot');
+    tbody.innerHTML = '';
+    Object.keys(_tipMap).forEach(k => delete _tipMap[k]);
+
+    let totalValExp = 0, totalOhEsp = 0, totalOhReal = 0, totalDelta = 0;
+    let prevAcumDepois = null;
+
+    linhas.forEach((l, i) => {
+        const cruzaFaixa = prevAcumDepois !== null && (
+            (prevAcumDepois <= 5000000  && l.acumulado_antes > 5000000)  ||
+            (prevAcumDepois <= 15000000 && l.acumulado_antes > 15000000)
+        );
+        prevAcumDepois = l.acumulado_depois;
+
+        const rowClass = l.eh_referencia ? 'row-ref'
+                       : l.status === 'ERRO'    ? 'row-err'
+                       : l.status === 'ATENCAO' ? 'row-warn' : '';
+        const refMark  = l.eh_referencia
+            ? ' <i class="fas fa-star text-primary" style="font-size:9px" title="CCO de referência"></i>'
+            : '';
+
+        const faixaBar = buildFaixaBar(l.fatias);
+        const tipHtml  = buildTooltipHtml(l.fatias);
+        const tipId    = `tip-${i}`;
+        if (tipHtml) _tipMap[tipId] = tipHtml;
+
+        const ohEspHtml = tipHtml
+            ? `<span id="${tipId}" class="oh-tip mono">${fmt(l.oh_esperado, 4)}</span>`
+            : `<span class="mono">${fmt(l.oh_esperado, 4)}</span>`;
+
+        const deltaClass = Math.abs(l.diferenca) > 0.01 ? 'text-danger' : 'text-muted';
+
+        if (cruzaFaixa) {
+            tbody.insertAdjacentHTML('beforeend', `
+            <tr class="sep-faixa">
+                <td colspan="15" class="text-center" style="font-size:10px;color:#718096;padding:4px 0">
+                    <i class="fas fa-arrows-left-right me-1"></i>Transição de faixa
+                </td>
+            </tr>`);
+        }
+
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr class="${rowClass}">
+            <td class="text-muted">${i + 1}</td>
+            <td class="mono">${l.dataReconhecimento}</td>
+            <td class="mono" style="font-size:10px;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${l.cco_id}">…${l.cco_id.slice(-10)}${refMark}</td>
+            <td>${l.campo || '—'}</td>
+            <td class="mono">${l.remessa || '—'}</td>
+            <td>${l.faseRemessa || '—'}</td>
+            <td>${l.origemDosGastos || '—'}</td>
+            <td class="mono text-end">${fmt(l.valorReconhecidoExploracao)}</td>
+            <td class="mono text-end text-muted">${fmt(l.acumulado_antes)}</td>
+            <td class="mono text-end">${fmt(l.acumulado_depois)}</td>
+            <td>${faixaBar}</td>
+            <td class="text-end">${ohEspHtml}</td>
+            <td class="mono text-end">${fmt(l.oh_real, 4)}</td>
+            <td class="mono text-end ${deltaClass}">${fmt(l.diferenca, 4)}</td>
+            <td>${badge(l.status)}</td>
+        </tr>`);
+
+        if (l.valorReconhecidoExploracao > 0) totalValExp += l.valorReconhecidoExploracao;
+        totalOhEsp  += l.oh_esperado;
+        totalOhReal += l.oh_real;
+        totalDelta  += l.diferenca;
+    });
+
+    const dtClass = Math.abs(totalDelta) > 0.05 ? 'text-danger' : '';
+    tfoot.innerHTML = `
+    <tr>
+        <td colspan="7" class="text-end">Totais:</td>
+        <td class="mono text-end">${fmt(totalValExp)}</td>
+        <td></td><td></td><td></td>
+        <td class="mono text-end">${fmt(totalOhEsp, 4)}</td>
+        <td class="mono text-end">${fmt(totalOhReal, 4)}</td>
+        <td class="mono text-end ${dtClass}">${fmt(totalDelta, 4)}</td>
+        <td></td>
+    </tr>`;
+
+    initTooltips();
+}
+
+// ── Exportação CSV ─────────────────────────────────────────────────────────
+function exportarCSV() {
+    if (!_linhas || !_linhas.length) { alert('Nenhum dado carregado.'); return; }
+
+    function faixaGet(fatias, taxa_pct, campo) {
+        const f = (fatias || []).find(x => x.taxa_pct === taxa_pct);
+        return f ? f[campo] : 0;
+    }
+
+    const sep = ';';
+    const BOM = '﻿';
+    const headers = [
+        '#', 'Data Rec.', 'ID CCO', 'Campo', 'Remessa', 'Fase', 'Origem',
+        'Val. Exp. (R$)', 'Acum. Antes (R$)', 'Acum. Depois (R$)',
+        'Valor Faixa 3% (R$)', 'OH Faixa 3% (R$)',
+        'Valor Faixa 2% (R$)', 'OH Faixa 2% (R$)',
+        'Valor Faixa 1% (R$)', 'OH Faixa 1% (R$)',
+        'OH Esperado (R$)', 'OH Real (R$)', 'Δ (R$)',
+        'Status', 'É Referência'
+    ];
+
+    const rows = _linhas.map((l, i) => [
+        i + 1,
+        l.dataReconhecimento,
+        l.cco_id,
+        l.campo || '',
+        l.remessa || '',
+        l.faseRemessa || '',
+        l.origemDosGastos || '',
+        brf(l.valorReconhecidoExploracao, 2),
+        brf(l.acumulado_antes, 2),
+        brf(l.acumulado_depois, 2),
+        brf(faixaGet(l.fatias, 3, 'valor_na_faixa'), 2),
+        brf(faixaGet(l.fatias, 3, 'oh_contribuicao'), 4),
+        brf(faixaGet(l.fatias, 2, 'valor_na_faixa'), 2),
+        brf(faixaGet(l.fatias, 2, 'oh_contribuicao'), 4),
+        brf(faixaGet(l.fatias, 1, 'valor_na_faixa'), 2),
+        brf(faixaGet(l.fatias, 1, 'oh_contribuicao'), 4),
+        brf(l.oh_esperado, 4),
+        brf(l.oh_real, 4),
+        brf(l.diferenca, 4),
+        l.status || '',
+        l.eh_referencia ? 'SIM' : 'NÃO',
+    ].map(v => {
+        const s = String(v);
+        return s.includes(sep) || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    }));
+
+    const csv = BOM + [headers, ...rows].map(r => r.join(sep)).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `oh_faixas_${_dadosMeta.contrato}_${_dadosMeta.ano}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

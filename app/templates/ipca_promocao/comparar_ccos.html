@@ -1,0 +1,652 @@
+<!-- templates/ipca_promocao/comparar_ccos.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<style>
+    .comparar-container { max-width: 1600px; }
+    .resumo-card { border-left: 4px solid; transition: transform 0.2s; }
+    .resumo-card:hover { transform: translateY(-2px); }
+    .resumo-card.aumentou { border-left-color: #28a745; }
+    .resumo-card.diminuiu { border-left-color: #dc3545; }
+    .resumo-card.alterado { border-left-color: #ffc107; }
+    .resumo-card.neutro { border-left-color: #6c757d; }
+    .diff-table th { background-color: #f8f9fa; position: sticky; top: 0; z-index: 10; }
+    .diff-row-changed { background-color: #fff3cd !important; }
+    .diff-row-added { background-color: #d4edda !important; }
+    .diff-row-removed { background-color: #f8d7da !important; }
+    .valor-aumentou { color: #28a745; font-weight: 600; }
+    .valor-diminuiu { color: #dc3545; font-weight: 600; }
+    .timeline-container { position: relative; padding-left: 30px; }
+    .timeline-container::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #dee2e6; }
+    .timeline-item { position: relative; padding: 15px; margin-bottom: 15px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .timeline-item::before { content: ''; position: absolute; left: -24px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: #007bff; border: 2px solid #fff; }
+    .timeline-item.nova::before { background: #28a745; }
+    .timeline-item.removida::before { background: #dc3545; }
+    .timeline-item.modificada::before { background: #ffc107; }
+    .chart-container { position: relative; height: 300px; }
+    .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .status-nova { background: #d4edda; color: #155724; }
+    .status-removida { background: #f8d7da; color: #721c24; }
+    .status-modificada { background: #fff3cd; color: #856404; }
+    .status-mantida { background: #e2e3e5; color: #383d41; }
+    .diff-inline { display: flex; align-items: center; gap: 10px; }
+    .valor-original { text-decoration: line-through; color: #6c757d; }
+    .valor-novo { font-weight: 600; }
+    .correcao-card { border-left: 4px solid #007bff; margin-bottom: 10px; }
+    .correcao-card.ipca { border-left-color: #28a745; }
+    .correcao-card.igpm { border-left-color: #17a2b8; }
+    .correcao-card.recuperacao { border-left-color: #dc3545; }
+    .correcao-card.retificacao { border-left-color: #ffc107; }
+</style>
+
+<div class="container-fluid comparar-container">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3"><i class="fas fa-columns me-2"></i>Comparação de CCOs</h1>
+            <p class="text-muted mb-0">Análise detalhada das diferenças entre CCO original e corrigida</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="exportarComparacao()">
+                <i class="fas fa-download me-2"></i>Exportar JSON
+            </button>
+            <a href="{{ url_for('ipca_promocao.detalhar_correcao', cco_id=cco_corrigida._id) }}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Identificação -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-auto"><strong>CCO:</strong> <code>{{ cco_corrigida._id }}</code></div>
+                <div class="col-auto"><strong>Contrato:</strong> {{ cco_corrigida.contratoCpp }}</div>
+                <div class="col-auto"><strong>Campo:</strong> {{ cco_corrigida.campo }}</div>
+                <div class="col-auto"><strong>Remessa:</strong> {{ cco_corrigida.remessa }}</div>
+                <div class="col-auto"><strong>Fase:</strong> {{ cco_corrigida.faseRemessa }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if comparacao.success %}
+    
+    <!-- Cards de Resumo -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card resumo-card h-100 {% if comparacao.resumo.impacto_financeiro > 0 %}aumentou{% elif comparacao.resumo.impacto_financeiro < 0 %}diminuiu{% else %}neutro{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-dollar-sign fa-2x text-{% if comparacao.resumo.impacto_financeiro >= 0 %}success{% else %}danger{% endif %} me-3"></i>
+                        <div>
+                            <h6 class="text-muted mb-1">Impacto Financeiro</h6>
+                            <h4 class="mb-0">{% if comparacao.resumo.impacto_financeiro >= 0 %}+{% endif %}R$ {{ "%.2f"|format(comparacao.resumo.impacto_financeiro) }}</h4>
+                            <small class="text-muted">{{ "%.2f"|format(comparacao.resumo.impacto_percentual) }}%</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card resumo-card h-100 alterado">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-edit fa-2x text-warning me-3"></i>
+                        <div>
+                            <h6 class="text-muted mb-1">Campos Alterados</h6>
+                            <h4 class="mb-0">{{ comparacao.resumo.total_campos_alterados }}</h4>
+                            <small class="text-muted">{{ comparacao.resumo.campos_monetarios_alterados }} monetários</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card resumo-card h-100 {% if comparacao.resumo.novas_correcoes > 0 %}aumentou{% else %}neutro{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-plus-circle fa-2x text-success me-3"></i>
+                        <div>
+                            <h6 class="text-muted mb-1">Novas Correções</h6>
+                            <h4 class="mb-0">{{ comparacao.resumo.novas_correcoes }}</h4>
+                            <small class="text-muted">adicionadas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card resumo-card h-100 neutro">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exchange-alt fa-2x text-info me-3"></i>
+                        <div>
+                            <h6 class="text-muted mb-1">Total Correções</h6>
+                            <h4 class="mb-0">{{ comparacao.analise_correcoes.qtd_original }} → {{ comparacao.analise_correcoes.qtd_corrigida }}</h4>
+                            <small class="text-muted">{% if comparacao.analise_correcoes.diferenca_quantidade > 0 %}+{% endif %}{{ comparacao.analise_correcoes.diferenca_quantidade }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs de Conteúdo -->
+    <ul class="nav nav-tabs mb-4" id="comparacaoTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabResumo">
+                <i class="fas fa-chart-pie me-2"></i>Resumo Visual
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCampos">
+                <i class="fas fa-list me-2"></i>Campos Alterados ({{ comparacao.diferencas_raiz|length }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCorrecoes">
+                <i class="fas fa-history me-2"></i>Correções Monetárias
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabEvolucao">
+                <i class="fas fa-chart-line me-2"></i>Evolução de Valores
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Tab Resumo Visual -->
+        <div class="tab-pane fade show active" id="tabResumo">
+            <div class="row">
+                <!-- Gráfico de Impacto -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Impacto por Tipo de Correção</h6></div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="chartTipos"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gráfico de Evolução -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Evolução do Valor Reconhecido com OH</h6></div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="chartEvolucao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumo de Tipos -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h6 class="mb-0"><i class="fas fa-tags me-2"></i>Distribuição por Tipo de Correção</h6></div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th class="text-center">Original</th>
+                                            <th class="text-center">Corrigida</th>
+                                            <th class="text-center">Diferença</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for tipo, dados in comparacao.analise_correcoes.resumo_tipos.items() %}
+                                        <tr>
+                                            <td><span class="badge bg-primary">{{ tipo }}</span></td>
+                                            <td class="text-center">{{ dados.original }}</td>
+                                            <td class="text-center">{{ dados.corrigida }}</td>
+                                            <td class="text-center">
+                                                {% if dados.diferenca > 0 %}
+                                                <span class="text-success">+{{ dados.diferenca }}</span>
+                                                {% elif dados.diferenca < 0 %}
+                                                <span class="text-danger">{{ dados.diferenca }}</span>
+                                                {% else %}
+                                                <span class="text-muted">0</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Campos Alterados -->
+        <div class="tab-pane fade" id="tabCampos">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-list me-2"></i>Campos com Diferenças</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary active" onclick="filtrarCampos('todos')">Todos</button>
+                            <button class="btn btn-outline-success" onclick="filtrarCampos('monetarios')">Monetários</button>
+                            <button class="btn btn-outline-info" onclick="filtrarCampos('outros')">Outros</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if comparacao.diferencas_raiz %}
+                    <div class="table-responsive">
+                        <table class="table table-hover diff-table" id="tabelaCampos">
+                            <thead>
+                                <tr>
+                                    <th>Campo</th>
+                                    <th>Valor Original</th>
+                                    <th></th>
+                                    <th>Valor Corrigido</th>
+                                    <th>Diferença</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for diff in comparacao.diferencas_raiz %}
+                                <tr class="diff-row-changed" data-tipo="{{ 'monetario' if diff.is_monetario else 'outro' }}">
+                                    <td>
+                                        <strong>{{ diff.label }}</strong>
+                                        <small class="text-muted d-block">{{ diff.campo }}</small>
+                                    </td>
+                                    <td>
+                                        {% if diff.is_monetario %}
+                                        R$ {{ "%.2f"|format(diff.valor_original or 0) }}
+                                        {% else %}
+                                        {{ diff.valor_original }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <i class="fas fa-arrow-right text-muted"></i>
+                                    </td>
+                                    <td>
+                                        {% if diff.is_monetario %}
+                                        <span class="{% if diff.diferenca_numerica and diff.diferenca_numerica > 0 %}valor-aumentou{% elif diff.diferenca_numerica and diff.diferenca_numerica < 0 %}valor-diminuiu{% endif %}">
+                                            R$ {{ "%.2f"|format(diff.valor_corrigido or 0) }}
+                                        </span>
+                                        {% else %}
+                                        <span class="valor-novo">{{ diff.valor_corrigido }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if diff.diferenca_numerica is not none %}
+                                        <span class="{% if diff.diferenca_numerica > 0 %}valor-aumentou{% elif diff.diferenca_numerica < 0 %}valor-diminuiu{% endif %}">
+                                            {% if diff.diferenca_numerica > 0 %}+{% endif %}R$ {{ "%.2f"|format(diff.diferenca_numerica) }}
+                                        </span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if diff.percentual is not none %}
+                                        <span class="{% if diff.percentual > 0 %}valor-aumentou{% elif diff.percentual < 0 %}valor-diminuiu{% endif %}">
+                                            {% if diff.percentual > 0 %}+{% endif %}{{ "%.2f"|format(diff.percentual) }}%
+                                        </span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Não há diferenças nos campos raiz das CCOs.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Correções Monetárias -->
+        <div class="tab-pane fade" id="tabCorrecoes">
+            <div class="row">
+                <!-- Novas Correções -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Correções Adicionadas ({{ comparacao.analise_correcoes.correcoes_novas|length }})</h6>
+                        </div>
+                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                            {% if comparacao.analise_correcoes.correcoes_novas %}
+                                {% for corr in comparacao.analise_correcoes.correcoes_novas %}
+                                <div class="card correcao-card {{ corr.tipo|lower }} mb-2">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <span class="badge bg-success">{{ corr.tipo }}</span>
+                                                <span class="badge bg-secondary">{{ corr.subTipo }}</span>
+                                                <small class="text-muted ms-2">data correção: {{ corr.dataCorrecao }}</small> |
+                                                <small class="text-muted ms-2"> data criação: {{ corr.dataCriacaoCorrecao }}</small>
+                                            </div>
+                                            <span class="status-badge status-nova">Nova</span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="row small">
+                                                <div class="col-6">
+                                                    <strong>Valor c/ OH:</strong> R$ {{ "%.2f"|format(corr.valorReconhecidoComOH or 0) }}
+                                                </div>
+                                                <div class="col-6">
+                                                    <strong>Diferença:</strong> 
+                                                    <span class="valor-aumentou">+R$ {{ "%.2f"|format(corr.diferencaValor or 0) }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="row small">
+                                                <div class="col-6">
+                                                    <strong>Valor c/ OH Original:</strong> R$ {{ "%.2f"|format(corr.valorReconhecidoComOHOriginal or 0) }}
+                                                </div>
+                                                {% if corr.tipo == 'RECUPERACAO' %}
+                                                <div class="col-6">
+                                                    <strong>Valor Recuperado:</strong> 
+                                                    <span class="valor-diminuiu">-R$ {{ "%.2f"|format(corr.valorRecuperado or 0) }}</span>
+                                                </div>
+                                                <div class="col-6">
+                                                    <strong>Valor RecuperadoTotal:</strong> 
+                                                    <span class="valor-diminuiu">-R$ {{ "%.2f"|format(corr.valorRecuperadoTotal or 0) }}</span>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            {% if corr.taxaCorrecao %}
+                                            <div class="small mt-1">
+                                                <strong>Taxa:</strong> {{ "%.4f"|format(corr.taxaCorrecao) }}
+                                            </div>
+                                            {% endif %}
+                                            {% if corr.observacao %}
+                                            <div class="small mt-2 text-muted fst-italic">{{ corr.observacao[:150] }}...</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                            <div class="text-muted text-center py-4">
+                                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                <p>Nenhuma correção nova adicionada</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Comparativa -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-stream me-2"></i>Timeline Comparativa</h6>
+                        </div>
+                        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                            <div class="row">
+                                <div class="col-6">
+                                    <h6 class="text-center text-muted mb-3">Original ({{ comparacao.analise_correcoes.qtd_original }})</h6>
+                                    <div class="timeline-container">
+                                        {% for item in comparacao.analise_correcoes.timeline_original %}
+                                        <div class="timeline-item">
+                                            <span class="badge bg-{{ 'success' if item.tipo == 'IPCA' else 'info' if item.tipo == 'IGPM' else 'danger' if item.tipo == 'RECUPERACAO' else 'warning' }}">
+                                                {{ item.tipo }}
+                                            </span>
+                                            <small class="text-muted d-block">{{ item.dataCorrecao }}</small>
+                                            <div class="small mt-1">R$ {{ "%.2f"|format(item.valorReconhecidoComOH or 0) }}</div>
+                                        </div>
+                                        {% else %}
+                                        <div class="text-center text-muted py-3">Sem correções</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-center text-muted mb-3">Corrigida ({{ comparacao.analise_correcoes.qtd_corrigida }})</h6>
+                                    <div class="timeline-container">
+                                        {% for item in comparacao.analise_correcoes.timeline_corrigida %}
+                                        <div class="timeline-item {% if loop.index > comparacao.analise_correcoes.qtd_original %}nova{% endif %}">
+                                            <span class="badge bg-{{ 'success' if item.tipo == 'IPCA' else 'info' if item.tipo == 'IGPM' else 'danger' if item.tipo == 'RECUPERACAO' else 'warning' }}">
+                                                {{ item.tipo }}
+                                            </span>
+                                            <small class="text-muted d-block">{{ item.dataCorrecao }}</small>
+                                            <div class="small mt-1">R$ {{ "%.2f"|format(item.valorReconhecidoComOH or 0) }}</div>
+                                        </div>
+                                        {% else %}
+                                        <div class="text-center text-muted py-3">Sem correções</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Evolução de Valores -->
+        <div class="tab-pane fade" id="tabEvolucao">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-area me-2"></i>Gráfico de Evolução</h6></div>
+                        <div class="card-body">
+                            <div style="height: 400px;">
+                                <canvas id="chartEvolucaoDetalhado"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header"><h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Resumo da Evolução</h6></div>
+                        <div class="card-body">
+                            <dl>
+                                <dt>Valor Inicial:</dt>
+                                <dd class="h5">R$ {{ "%.2f"|format(comparacao.impacto_financeiro.valor_inicial or 0) }}</dd>
+                                
+                                <dt>Valor Final (Original):</dt>
+                                <dd class="h5 text-muted">R$ {{ "%.2f"|format(comparacao.impacto_financeiro.valor_final_original or 0) }}</dd>
+                                
+                                <dt>Valor Final (Corrigida):</dt>
+                                <dd class="h5 text-success">R$ {{ "%.2f"|format(comparacao.impacto_financeiro.valor_final_corrigido or 0) }}</dd>
+                                
+                                <hr>
+                                
+                                <dt>Ganho com Correção Original:</dt>
+                                <dd>R$ {{ "%.2f"|format(comparacao.impacto_financeiro.ganho_correcao_original or 0) }}</dd>
+                                
+                                <dt>Ganho com Nova Correção:</dt>
+                                <dd class="h5 text-success">R$ {{ "%.2f"|format(comparacao.impacto_financeiro.ganho_correcao or 0) }}</dd>
+                                
+                                <dt>Diferença Total:</dt>
+                                <dd class="h4 {% if comparacao.impacto_financeiro.diferenca_total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {% if comparacao.impacto_financeiro.diferenca_total >= 0 %}+{% endif %}R$ {{ "%.2f"|format(comparacao.impacto_financeiro.diferenca_total or 0) }}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Erro na comparação -->
+    <div class="alert alert-danger">
+        <h5><i class="fas fa-exclamation-triangle me-2"></i>Erro na Comparação</h5>
+        <p>{{ comparacao.error or 'Não foi possível realizar a comparação das CCOs.' }}</p>
+        {% if not cco_original %}
+        <p class="mb-0">A CCO original não foi encontrada na base de produção.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Dados para JavaScript -->
+<script>
+const dadosComparacao = {{ comparacao|tojson|safe }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (!dadosComparacao.success) return;
+    
+    // Gráfico de Tipos de Correção
+    const tiposData = dadosComparacao.analise_correcoes.resumo_tipos;
+    const tiposLabels = Object.keys(tiposData);
+    const tiposOriginal = tiposLabels.map(t => tiposData[t].original);
+    const tiposCorrigida = tiposLabels.map(t => tiposData[t].corrigida);
+    
+    new Chart(document.getElementById('chartTipos'), {
+        type: 'bar',
+        data: {
+            labels: tiposLabels,
+            datasets: [
+                { label: 'Original', data: tiposOriginal, backgroundColor: 'rgba(108, 117, 125, 0.7)' },
+                { label: 'Corrigida', data: tiposCorrigida, backgroundColor: 'rgba(40, 167, 69, 0.7)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+    
+    // Gráfico de Evolução Simplificado
+    const evolOriginal = dadosComparacao.impacto_financeiro.evolucao_original || [];
+    const evolCorrigida = dadosComparacao.impacto_financeiro.evolucao_corrigida || [];
+    
+    new Chart(document.getElementById('chartEvolucao'), {
+        type: 'line',
+        data: {
+            labels: evolCorrigida.map((e, i) => e.etapa || `Etapa ${i}`),
+            datasets: [
+                {
+                    label: 'Original',
+                    data: evolOriginal.map(e => e.valor),
+                    borderColor: 'rgba(108, 117, 125, 1)',
+                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Corrigida',
+                    data: evolCorrigida.map(e => e.valor),
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Gráfico de Evolução Detalhado
+    new Chart(document.getElementById('chartEvolucaoDetalhado'), {
+        type: 'line',
+        data: {
+            labels: evolCorrigida.map((e, i) => e.tipo ? `${e.tipo} (${e.data || ''})` : e.etapa),
+            datasets: [
+                {
+                    label: 'Evolução Original',
+                    data: evolOriginal.map(e => e.valor),
+                    borderColor: 'rgba(108, 117, 125, 1)',
+                    backgroundColor: 'rgba(108, 117, 125, 0.2)',
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                },
+                {
+                    label: 'Evolução Corrigida',
+                    data: evolCorrigida.map(e => e.valor),
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': R$ ' + context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', {minimumFractionDigits: 0});
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+
+function filtrarCampos(tipo) {
+    document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    document.querySelectorAll('#tabelaCampos tbody tr').forEach(row => {
+        const rowTipo = row.dataset.tipo;
+        if (tipo === 'todos' || rowTipo === tipo || (tipo === 'outros' && rowTipo !== 'monetario')) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function exportarComparacao() {
+    const dataStr = JSON.stringify(dadosComparacao, null, 2);
+    const blob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comparacao_cco_${dadosComparacao.metadata?.cco_id || 'export'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

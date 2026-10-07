@@ -1,0 +1,1425 @@
+{% extends "base.html" %}
+
+{% block title %}Correção IPCA/IGPM - Portal PPSA{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --step-inactive: #e9ecef;
+        --step-active: #667eea;
+        --step-completed: #28a745;
+    }
+
+    /* Header da página */
+    .page-header {
+        background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 30px;
+        border-left: 5px solid #667eea;
+    }
+
+    .page-header h1 {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 8px;
+    }
+
+    .page-header p {
+        color: #666;
+        margin-bottom: 0;
+    }
+
+    /* Tabs de modo */
+    .mode-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 25px;
+    }
+
+    .mode-tab {
+        padding: 12px 24px;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        color: #666;
+    }
+
+    .mode-tab:hover {
+        border-color: #667eea;
+        color: #667eea;
+    }
+
+    .mode-tab.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: transparent;
+    }
+
+    .mode-tab i {
+        margin-right: 8px;
+    }
+
+    /* Step Indicator */
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 35px;
+
+        /* Espaço extra inferior para manter os labels dos passos
+           totalmente dentro do card. */
+        padding: 20px 20px 38px;
+
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .step {
+        display: flex;
+        align-items: center;
+        position: relative;
+    }
+
+    .step:not(:last-child)::after {
+        content: '';
+        width: 60px;
+        height: 3px;
+        background: var(--step-inactive);
+        margin: 0 15px;
+        border-radius: 2px;
+        transition: background 0.3s ease;
+    }
+
+    .step.completed:not(:last-child)::after {
+        background: var(--step-completed);
+    }
+
+    .step-number {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: var(--step-inactive);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #666;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .step.active .step-number {
+        background: var(--step-active);
+        color: white;
+        box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+    }
+
+    .step.completed .step-number {
+        background: var(--step-completed);
+        color: white;
+    }
+
+    .step.completed .step-number::after {
+        content: '✓';
+        position: absolute;
+    }
+
+    .step.completed .step-number span {
+        display: none;
+    }
+
+    .step-label {
+        position: absolute;
+        top: 55px;
+        /* Centraliza o texto em relação ao círculo de 45px,
+           sem considerar a linha de conexão do step. */
+        left: 22.5px;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 0.85rem;
+        color: #666;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    .step.active .step-label {
+        color: var(--step-active);
+        font-weight: 600;
+    }
+
+    .step.completed .step-label {
+        color: var(--step-completed);
+    }
+
+    /* Sections */
+    .content-section {
+        background: white;
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: 1px solid #e9ecef;
+    }
+
+    .content-section.hidden {
+        display: none;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .section-header i {
+        font-size: 1.5rem;
+        color: #667eea;
+    }
+
+    .section-header h2 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin: 0;
+    }
+
+    /* Form inputs */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #34495e;
+        font-size: 0.95rem;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e1e8ed;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+
+    /* Buttons */
+    .btn-primary-gradient {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 14px 28px;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary-gradient:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102,126,234,0.3);
+    }
+
+    .btn-primary-gradient:disabled {
+        background: #95a5a6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .btn-success-gradient {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    .btn-success-gradient:hover {
+        box-shadow: 0 8px 20px rgba(40,167,69,0.3);
+    }
+
+    /* Link de promoção usa o mesmo padrão visual dos botões da tela */
+    #application-buttons a.btn-success-gradient {
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    #application-buttons a.btn-success-gradient:hover {
+        color: white;
+        text-decoration: none;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(40,167,69,0.3);
+    }
+
+    .btn-warning-gradient {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    }
+
+    .btn-outline {
+        background: white;
+        color: #667eea;
+        border: 2px solid #667eea;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .btn-outline:hover {
+        background: #667eea;
+        color: white;
+        text-decoration: none;
+    }
+
+    /* Alerts */
+    .alert-custom {
+        padding: 16px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .alert-custom i {
+        font-size: 1.2rem;
+        margin-top: 2px;
+    }
+
+    .alert-info {
+        background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);
+        border-left: 4px solid #667eea;
+        color: #2c5282;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        border-left: 4px solid #28a745;
+        color: #155724;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        color: #856404;
+    }
+
+    .alert-danger {
+        background: #f8d7da;
+        border-left: 4px solid #dc3545;
+        color: #721c24;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+        margin: 25px 0;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        border-color: #667eea;
+        transform: translateY(-3px);
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+
+    .stat-value.positive {
+        color: #28a745;
+    }
+
+    .stat-value.negative {
+        color: #dc3545;
+    }
+
+    .stat-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    /* Table */
+    .table-container {
+        overflow-x: auto;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+    }
+
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .custom-table th {
+        background: #f8f9fa;
+        padding: 14px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 0.9rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .custom-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: middle;
+    }
+
+    .custom-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .custom-table input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    /* Badges */
+    .badge-type {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-ipca {
+        background: linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.15) 100%);
+        color: #667eea;
+    }
+
+    .badge-compensation {
+        background: rgba(40,167,69,0.15);
+        color: #28a745;
+    }
+
+    .badge-reactivation {
+        background: rgba(255,193,7,0.15);
+        color: #d39e00;
+    }
+
+    .badge-duplicata {
+        background: rgba(220,53,69,0.15);
+        color: #dc3545;
+    }
+
+    .badge-recovery {
+        background: rgba(111,66,193,0.15);
+        color: #6f42c1;
+    }
+
+    /* Loading */
+    .loading-overlay {
+        display: none;
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+        color: #666;
+        font-size: 1.1rem;
+    }
+
+    /* Action buttons group */
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid #e9ecef;
+    }
+
+    /* Success state */
+    .success-container {
+        text-align: center;
+        padding: 40px;
+    }
+
+    .success-icon {
+        font-size: 4rem;
+        color: #28a745;
+        margin-bottom: 20px;
+    }
+
+    .success-title {
+        font-size: 1.5rem;
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .step-indicator {
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .step:not(:last-child)::after {
+            display: none;
+        }
+
+        .step-label {
+            position: static;
+            transform: none;
+            margin-top: 8px;
+        }
+
+        .mode-tabs {
+            flex-direction: column;
+        }
+    }
+    /* Link Timeline */
+    .btn-timeline-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 16px;
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-timeline-link:hover {
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(23, 162, 184, 0.35);
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div>
+        <h1><i class="fas fa-percentage me-2"></i>Sistema de Correção IPCA/IGPM</h1>
+        <p class="mb-0">Análise inteligente e correção de gaps em CCOs</p>
+    </div>
+</div>
+
+<!-- Banner de identificação da CCO (visível após iniciar análise) -->
+<div id="cco-info-banner" class="hidden mb-3">
+    <div style="background: linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%); border: 1px solid rgba(102,126,234,0.3); border-radius: 12px; padding: 14px 20px;">
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">ID CCO</small>
+                <code id="info-cco-id" style="font-size: 0.85rem; color: #2c3e50;"></code>
+            </div>
+            <div class="vr d-none d-md-block" style="opacity: 0.3;"></div>
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">Contrato CPP</small>
+                <strong id="info-contrato" style="font-size: 0.9rem; color: #2c3e50;"></strong>
+            </div>
+            <div class="vr d-none d-md-block" style="opacity: 0.3;"></div>
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">Remessa</small>
+                <strong id="info-remessa" style="font-size: 0.9rem; color: #2c3e50;"></strong>
+            </div>
+            <div class="vr d-none d-md-block" style="opacity: 0.3;"></div>
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">Fase</small>
+                <span id="info-fase" class="badge bg-secondary"></span>
+            </div>
+            <div class="vr d-none d-md-block" style="opacity: 0.3;"></div>
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">Origem dos Gastos</small>
+                <span id="info-origem" style="font-size: 0.85rem; color: #555;"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mode Tabs -->
+<div class="mode-tabs">
+    <div class="mode-tab active" onclick="switchMode('analise')" id="tab-analise">
+        <i class="fas fa-search"></i>Análise Completa
+    </div>
+    <div class="mode-tab" onclick="switchMode('vigente')" id="tab-vigente">
+        <i class="fas fa-calendar-check"></i>IPCA Ano Vigente
+    </div>
+</div>
+
+<!-- MODO ANÁLISE COMPLETA -->
+<div id="modo-analise">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step active" id="step-1">
+            <div class="step-number"><span>1</span></div>
+            <div class="step-label">Análise</div>
+        </div>
+        <div class="step" id="step-2">
+            <div class="step-number"><span>2</span></div>
+            <div class="step-label">Propostas</div>
+        </div>
+        <div class="step" id="step-3">
+            <div class="step-number"><span>3</span></div>
+            <div class="step-label">Aprovação</div>
+        </div>
+        <div class="step" id="step-4">
+            <div class="step-number"><span>4</span></div>
+            <div class="step-label">Aplicação</div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p class="loading-text" id="loading-text">Processando...</p>
+    </div>
+
+    <!-- Step 1: Análise -->
+    <div class="content-section" id="section-analysis">
+        <div class="section-header">
+            <i class="fas fa-search-plus"></i>
+            <h2>Análise de CCO</h2>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="form-group">
+                    <label for="cco-id">ID da CCO</label>
+                    <input type="text" id="cco-id" placeholder="Ex: 7Z0InO8IRQeeFVKHFiPn6gAAAAA">
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <button class="btn-primary-gradient" onclick="iniciarAnalise()">
+                <i class="fas fa-search"></i>Analisar CCO
+            </button>
+            <a href="{{ request.script_root }}/ipca-correcao/pesquisar-ccos" class="btn-outline">
+                <i class="fas fa-list me-1"></i>Pesquisar CCOs
+            </a>
+        </div>
+    </div>
+
+    <!-- Step 2: Resultados da Análise -->
+    <div class="content-section hidden" id="section-results">
+        <div class="section-header">
+            <i class="fas fa-clipboard-list"></i>
+            <h2>Resultados da Análise</h2>
+        </div>
+
+        <div id="analysis-alerts"></div>
+        <div id="scenario-info"></div>
+        <div id="problems-summary"></div>
+
+        <div class="action-buttons">
+            <button class="btn-success-gradient" onclick="gerarPropostas()" id="btn-generate-proposals" disabled>
+                <i class="fas fa-bolt"></i>Gerar Propostas de Correção
+            </button>
+            <button class="btn-outline" onclick="novaAnalise()">
+                <i class="fas fa-redo me-1"></i>Nova Análise
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: Propostas -->
+    <div class="content-section hidden" id="section-proposals">
+        <div class="section-header">
+            <i class="fas fa-lightbulb"></i>
+            <h2>Propostas de Correção</h2>
+        </div>
+
+        <div id="proposals-content"></div>
+
+        <div class="action-buttons">
+            <button class="btn-warning-gradient" onclick="aprovarCorrecoes()" id="btn-approve" disabled>
+                <i class="fas fa-check-double"></i>Aprovar Selecionadas
+            </button>
+            <button class="btn-outline" onclick="voltarResultados()">
+                <i class="fas fa-arrow-left"></i>Voltar
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Aplicação -->
+    <div class="content-section hidden" id="section-application">
+        <div class="section-header">
+            <i class="fas fa-rocket"></i>
+            <h2>Aplicação das Correções</h2>
+        </div>
+
+        <div id="application-content"></div>
+
+        <div class="action-buttons" id="application-buttons">
+            <button class="btn-success-gradient" onclick="aplicarCorrecoes()" id="btn-apply" disabled>
+                <i class="fas fa-check-circle"></i>Aplicar Correções
+            </button>
+            <button class="btn-outline" onclick="novaAnalise()">
+                <i class="fas fa-redo me-1"></i>Nova Análise
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODO IPCA ANO VIGENTE -->
+<div id="modo-vigente" class="hidden">
+    <div class="content-section" id="section-vigente-main">
+        <div class="section-header">
+            <i class="fas fa-calendar-check"></i>
+            <h2>Correção IPCA Ano Vigente</h2>
+        </div>
+
+        <div class="alert-custom alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>O que é?</strong><br>
+                Esta funcionalidade permite aplicar correção IPCA para CCOs cujo aniversário ocorreu no ano vigente, 
+                mas ainda não possuem a correção aplicada.
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="cco-ipca-vigente">ID da CCO</label>
+                    <input type="text" id="cco-ipca-vigente" placeholder="Digite o ID da CCO">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-primary-gradient" onclick="avaliarIPCAVigente()">
+            <i class="fas fa-search"></i>Avaliar Aplicabilidade
+        </button>
+
+        <div id="resultado-ipca-vigente" class="mt-4"></div>
+    </div>
+
+    <!-- Propostas IPCA Vigente (reutiliza estrutura) -->
+    <div class="content-section hidden" id="section-vigente-proposals">
+        <div class="section-header">
+            <i class="fas fa-lightbulb"></i>
+            <h2>Proposta de Correção IPCA Vigente</h2>
+        </div>
+
+        <div id="vigente-proposals-content"></div>
+
+        <div class="action-buttons">
+            <button class="btn-warning-gradient" onclick="aprovarCorrecoes()" id="btn-approve-vigente" disabled>
+                <i class="fas fa-check-double"></i>Aprovar Correção
+            </button>
+            <button class="btn-outline" onclick="voltarVigente()">
+                <i class="fas fa-arrow-left"></i>Voltar
+            </button>
+        </div>
+    </div>
+</div>
+<!-- Modal de Confirmação de Saída -->
+<div class="modal fade" id="modalConfirmExit" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 16px; border: none; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); border: none;">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Atenção
+                </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div style="font-size: 4rem; color: #f39c12; margin-bottom: 15px;">
+                    <i class="fas fa-file-export"></i>
+                </div>
+                <h5 class="mb-3">Você tem uma análise em andamento</h5>
+                <p class="text-muted mb-0">
+                    Se você sair agora, todos os dados da análise atual serão perdidos 
+                    e você precisará iniciar novamente.
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pb-4">
+                <button type="button" class="btn-outline" data-bs-dismiss="modal" style="min-width: 120px;">
+                    <i class="fas fa-arrow-left me-2"></i>Continuar
+                </button>
+                <button type="button" class="btn-primary-gradient" onclick="confirmExit()" style="min-width: 120px; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">
+                    <i class="fas fa-sign-out-alt me-2"></i>Sair
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+const CCO_ID_INICIAL = "{{ cco_id_inicial | default('') }}";
+
+// ============ Estado da Aplicação ============
+let currentSession = null;
+let analysisData = null;
+let proposalsData = null;
+let currentMode = 'analise';
+let currentCcoId = null;   // ID da CCO sendo analisada
+let currentCcoInfo = null; // Dados de identificação da CCO
+
+let pendingAction = null;  // Guarda a ação pendente após confirmação
+let exitModal = null;      // Referência ao modal
+
+// ============ Navegação entre modos ============
+function switchMode(mode) {
+    // Se está em análise ativa (step >= 2), mostrar modal
+    if (currentMode === 'analise' && hasActiveAnalysis() && mode !== 'analise') {
+        pendingAction = () => {
+            forceSwitch(mode);
+        };
+        exitModal.show();
+        return;
+    }
+    
+    forceSwitch(mode);
+}
+
+function forceSwitch(mode) {
+    currentMode = mode;
+    
+    // Atualizar tabs
+    document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
+    document.getElementById(`tab-${mode}`).classList.add('active');
+    
+    // Mostrar/esconder modos
+    document.getElementById('modo-analise').classList.toggle('hidden', mode !== 'analise');
+    document.getElementById('modo-vigente').classList.toggle('hidden', mode !== 'vigente');
+    
+    // Reset ao trocar de modo
+    if (mode === 'analise') {
+        novaAnalise();
+    } else {
+        voltarVigente();
+    }
+}
+
+function hasActiveAnalysis() {
+    // Verifica se há análise ativa (session existe e está além do step 1)
+    return currentSession !== null;
+}
+
+function confirmExit() {
+    exitModal.hide();
+    currentSession = null;  // Limpa a sessão para permitir saída
+    if (pendingAction) {
+        pendingAction();
+        pendingAction = null;
+    }
+}
+
+// Proteção ao sair da página (fechar aba, navegar para outra URL)
+window.addEventListener('beforeunload', function(e) {
+    if (hasActiveAnalysis()) {
+        e.preventDefault();
+        e.returnValue = '';  // Necessário para alguns browsers
+        return '';
+    }
+});
+
+// Interceptar cliques em links do navbar
+document.addEventListener('click', function(e) {
+    const link = e.target.closest('a[href]');
+    if (link && hasActiveAnalysis()) {
+        const href = link.getAttribute('href');
+        const target = link.getAttribute('target');
+        
+        // Ignora links que abrem em nova aba, links internos (# ou javascript:)
+        if (target === '_blank') {
+            return;  // Permite abrir normalmente em nova aba
+        }
+        
+        if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+            e.preventDefault();
+            pendingAction = () => {
+                window.location.href = href;
+            };
+            exitModal.show();
+        }
+    }
+});
+
+// ============ API Calls ============
+async function callBackend(endpoint, data) {
+    const endpoints = {
+        'iniciar_analise': `${window.API_PREFIX}/ipca-correcao/api/iniciar-analise`,
+        'gerar_propostas': `${window.API_PREFIX}/ipca-correcao/api/gerar-propostas`,
+        'aprovar_correcoes': `${window.API_PREFIX}/ipca-correcao/api/aprovar-correcoes`,
+        'aplicar_correcoes': `${window.API_PREFIX}/ipca-correcao/api/aplicar-correcoes`,
+        'avaliar_ipca_vigente': `${window.API_PREFIX}/ipca-correcao/api/avaliar-ipca-vigente`
+    };
+    
+    const response = await fetch(endpoints[endpoint], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
+// ============ Banner de identificação da CCO ============
+function mostrarCcoInfoBanner(info) {
+    if (!info || !info.id) return;
+    currentCcoInfo = info;
+    document.getElementById('info-cco-id').textContent = info.id;
+    document.getElementById('info-contrato').textContent = info.contratoCpp || '-';
+    document.getElementById('info-remessa').textContent = info.remessa || '-';
+    document.getElementById('info-fase').textContent = info.faseRemessa || '-';
+    document.getElementById('info-origem').textContent = info.origemDosGastos || '-';
+    document.getElementById('cco-info-banner').classList.remove('hidden');
+}
+
+function ocultarCcoInfoBanner() {
+    document.getElementById('cco-info-banner').classList.add('hidden');
+    currentCcoInfo = null;
+}
+
+// ============ Step 1: Análise ============
+async function iniciarAnalise() {
+    const ccoId = document.getElementById('cco-id').value.trim();
+    currentCcoId = ccoId;
+
+    if (!ccoId) {
+        alert('Por favor, digite o ID da CCO');
+        return;
+    }
+
+    showLoading('Analisando CCO e identificando gaps...');
+    hideSection('section-analysis');
+
+    try {
+        const response = await callBackend('iniciar_analise', { cco_id: ccoId });
+
+        if (response.success) {
+            currentSession = response.session_id;
+            analysisData = response;
+            mostrarCcoInfoBanner(response.cco_info);
+            mostrarResultadosAnalise(response);
+            updateStepIndicator(2);
+        } else {
+            throw new Error(response.error || 'Erro na análise');
+        }
+    } catch (error) {
+        if (error.message === 'HTTP 404') { // CCO inexistente
+            alert('CCO inexistente. Por favor, verifique o ID e tente novamente.');
+        }else{
+            alert('Erro ao analisar CCO: ' + error.message);
+        }
+        showSection('section-analysis');
+    } finally {
+        hideLoading();
+    }
+}
+
+function getTimelineLink() {
+    if (!currentCcoId) return '';
+    return `
+        <a href="{{ request.script_root }}/cco-timeline/${currentCcoId}" target="_blank" class="btn-timeline-link" title="Abrir Timeline em nova aba">
+            <i class="fas fa-stream me-1"></i>Ver Timeline da CCO
+            <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
+        </a>
+    `;
+}
+
+function mostrarResultadosAnalise(data) {
+    // Alertas
+    document.getElementById('analysis-alerts').innerHTML = `
+        <div class="alert-custom alert-success" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Análise concluída!</strong> Sessão: <code>${data.session_id}</code>
+            </div>
+            ${getTimelineLink()}
+        </div>
+    `;
+    
+    // Cenário
+    const scenarios = {
+        'CENARIO_0': { icon: '📋', text: 'Gap Simples - CCO sem correção no aniversário' },
+        'CENARIO_1': { icon: '🔄', text: 'Gap com Correção Posterior - Necessário recálculo' },
+        'CENARIO_2': { icon: '💰', text: 'Gap com Recuperação - Necessário compensação' },
+        'CENARIO_DUPLICATAS': { icon: '📑', text: 'Duplicatas Detectadas - Correções IPCA/IGPM duplicadas' },
+        'CENARIO_COMPLEXO': { icon: '⚠️', text: 'Cenário Complexo - Análise detalhada necessária' }
+    };
+    
+    const scenario = scenarios[data.scenario_detected] || { icon: '❓', text: data.scenario_detected };
+    document.getElementById('scenario-info').innerHTML = `
+        <div class="alert-custom alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div><strong>${scenario.icon} Cenário Detectado:</strong> ${scenario.text}</div>
+        </div>
+    `;
+    
+    // Problemas
+    document.getElementById('problems-summary').innerHTML = `
+        <h5 class="mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Problemas Identificados</h5>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">${data.gaps_count}</div>
+                <div class="stat-label">Gaps de Correção</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${data.corrections_fora_count}</div>
+                <div class="stat-label">Correções Fora do Prazo</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${data.duplicates_count}</div>
+                <div class="stat-label">Duplicatas IPCA/IGPM</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('btn-generate-proposals').disabled = false;
+    showSection('section-results');
+}
+
+// ============ Step 2: Propostas ============
+async function gerarPropostas() {
+    if (!currentSession) return alert('Sessão inválida');
+    
+    showLoading('Gerando propostas de correção...');
+    hideSection('section-results');
+    
+    try {
+        const response = await callBackend('gerar_propostas', { session_id: currentSession });
+        
+        if (response.success) {
+            proposalsData = response;
+            mostrarPropostas(response);
+            updateStepIndicator(3);
+        } else {
+            throw new Error(response.error || 'Erro ao gerar propostas');
+        }
+    } catch (error) {
+        alert('Erro: ' + error.message);
+        showSection('section-results');
+    } finally {
+        hideLoading();
+    }
+}
+
+const typeLabels = {
+    'IPCA_ADDITION': { label: 'Adicionar IPCA', badge: 'badge-ipca' },
+    'IPCA_UPDATE': { label: 'Atualizar IPCA', badge: 'badge-ipca' },
+    'COMPENSATION': { label: 'Compensação', badge: 'badge-compensation' },
+    'REACTIVATION': { label: 'Reativação', badge: 'badge-reactivation' },
+    'DUPLICATA_REMOVAL': { label: 'Remover Duplicata', badge: 'badge-duplicata' },
+    'DUPLICATA_ADJUSTMENT': { label: 'Ajuste Duplicata', badge: 'badge-duplicata' },
+    'RECOVERY_ADJUSTMENT': { label: 'Ajuste de Recuperação', badge: 'badge-recovery' }
+};
+
+function _buildProposalsTable(proposals, idPrefix) {
+    let errorMessage = null;
+    let rows = '';
+    proposals.forEach(p => {
+        if (p.taxa_aplicada === '0.00' || p.taxa_referencia === 0) {
+            errorMessage = 'Taxa de IPCA inválida detectada';
+        }
+        const type = typeLabels[p.type] || { label: p.type, badge: 'badge-ipca' };
+        const showValues = ['IPCA_ADDITION', 'IPCA_UPDATE', 'COMPENSATION', 'RECOVERY_ADJUSTMENT'].includes(p.type);
+        rows += `
+            <tr>
+                <td><input type="checkbox" id="${idPrefix}${p.correction_id}" value="${p.correction_id}" checked onchange="updateApprovalButton()"></td>
+                <td><span class="badge-type ${type.badge}">${type.label}</span></td>
+                <td>${['IPCA_ADDITION', 'IPCA_UPDATE'].includes(p.type) ? `${p.taxa_aplicada} (${p.taxa_referencia})` : '-'}</td>
+                <td>${showValues ? `R$ ${p.current_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
+                <td>${showValues ? `R$ ${p.proposed_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
+                <td>${p.type !== 'REACTIVATION' ? `R$ ${p.impact.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</td>
+                <td>${p.description}</td>
+            </tr>`;
+    });
+    return { rows, errorMessage };
+}
+
+function mostrarPropostas(data) {
+    let html = `
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div class="alert-custom alert-info mb-0" style="flex: 1;">
+                <i class="fas fa-coins"></i>
+                <div><strong>Impacto Financeiro Total:</strong> R$ ${data.financial_impact.total_impact.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            </div>
+            ${getTimelineLink()}
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value positive">R$ ${data.financial_impact.total_additions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Adições IPCA</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">R$ ${data.financial_impact.total_updates.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Atualizações</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${data.proposals_count}</div>
+                <div class="stat-label">Correções Propostas</div>
+            </div>
+        </div>`;
+
+    const tableHeader = `
+        <table class="custom-table">
+            <thead><tr>
+                <th style="width:40px;">✓</th>
+                <th>Tipo</th><th>Taxa</th><th>Valor Atual</th>
+                <th>Valor Proposto</th><th>Impacto</th><th>Descrição</th>
+            </tr></thead><tbody>`;
+
+    const { rows, errorMessage } = _buildProposalsTable(data.proposals, 'proposal_');
+    html += `
+        <h5 class="mt-4 mb-3"><i class="fas fa-list-check me-2"></i>Propostas de Correção</h5>
+        <div class="table-container">${tableHeader}${rows}</tbody></table></div>`;
+
+    document.getElementById('proposals-content').innerHTML = html;
+    updateApprovalButton(errorMessage);
+    showSection('section-proposals');
+}
+
+function updateApprovalButton(errorMessage = null) {
+    const checked = document.querySelectorAll(`input[type="checkbox"][id^="proposal_"]:checked`).length;
+    const btn = document.getElementById('btn-approve');
+    btn.disabled = checked === 0 || !!errorMessage;
+    btn.innerHTML = `<i class="fas fa-check-double"></i>Aprovar ${checked} Correção(ões)`;
+    if (errorMessage) alert(errorMessage);
+}
+
+// ============ Step 3: Aprovação ============
+async function aprovarCorrecoes() {
+    const selected = Array.from(document.querySelectorAll(`input[type="checkbox"][id^="proposal_"]:checked`)).map(cb => cb.value);
+
+    if (selected.length === 0) return alert('Selecione pelo menos uma correção');
+
+    showLoading('Processando aprovação...');
+    hideSection('section-proposals');
+
+    try {
+        const response = await callBackend('aprovar_correcoes', { session_id: currentSession, corrections_approved: selected });
+        
+        if (response.success) {
+            mostrarAplicacao(response, selected);
+            updateStepIndicator(4);
+        } else {
+            throw new Error(response.error);
+        }
+    } catch (error) {
+        alert('Erro: ' + error.message);
+        showSection('section-proposals');
+    } finally {
+        hideLoading();
+    }
+}
+
+function mostrarAplicacao(data, selectedIds) {
+    const approved = data.final_preview.approved_corrections || [];
+    const totalImpact = data.final_preview.total_financial_impact || 0;
+    
+    let html = `
+        <div class="alert-custom alert-success">
+            <i class="fas fa-check-circle"></i>
+            <div><strong>${selectedIds.length} correção(ões) aprovada(s)</strong> e pronta(s) para aplicação</div>
+        </div>
+        
+        <div class="alert-custom alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div><strong>Atenção:</strong> As correções serão salvas em área temporária para posterior promoção a produção.</div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">${selectedIds.length}</div>
+                <div class="stat-label">Correções Aprovadas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value positive">R$ ${totalImpact.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Impacto Total</div>
+            </div>
+        </div>
+        
+        <h5 class="mt-4 mb-3"><i class="fas fa-tasks me-2"></i>Correções a serem aplicadas:</h5>
+        <ul class="list-group">
+    `;
+    
+    approved.forEach(p => {
+        html += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${p.description}</strong><br>
+                    <small class="text-muted">Período: ${p.target_period}</small>
+                </div>
+                <span class="badge bg-success">R$ ${p.impact.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </li>
+        `;
+    });
+    
+    html += '</ul>';
+    
+    document.getElementById('application-content').innerHTML = html;
+    document.getElementById('btn-apply').disabled = false;
+    showSection('section-application');
+}
+
+// ============ Step 4: Aplicação ============
+async function aplicarCorrecoes() {
+    if (!confirm('Confirma a aplicação das correções? Elas serão salvas em área temporária.')) return;
+    
+    showLoading('Aplicando correções...');
+    
+    try {
+        const response = await callBackend('aplicar_correcoes', { session_id: currentSession });
+        
+        if (response.success) {
+            mostrarSucesso(response);
+            updateStepIndicator(4, true);
+        } else {
+            throw new Error(response.error);
+        }
+    } catch (error) {
+        alert('Erro: ' + error.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+function mostrarSucesso(data) {
+    currentSession = null;  // Análise concluída, pode sair sem aviso
+
+    const dataAplicacao = new Date(data.applied_at);
+    const dataAplicacaoFormatada =
+        `${dataAplicacao.toLocaleDateString('pt-BR')} ${dataAplicacao.toLocaleTimeString('pt-BR')}`;
+
+    document.getElementById('application-content').innerHTML = `
+        <div class="success-container">
+            <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+            <h3 class="success-title">Correções Aplicadas com Sucesso!</h3>
+            <p class="text-muted">
+                Aplicado em: ${dataAplicacaoFormatada}<br>
+                Correções processadas: ${data.corrections_applied_count}
+            </p>
+            <div class="alert-custom alert-info mt-4">
+                <i class="fas fa-arrow-right"></i>
+                <div>As correções foram salvas em área temporária. Acesse <a href="{{ url_for('ipca_promocao.index') }}"><strong>Promoção de Correções</strong></a> para revisar e promover para produção.</div>
+            </div>
+        </div>
+    `;
+    document.getElementById('application-buttons').innerHTML = `
+        <a href="{{ url_for('ipca_promocao.index') }}" class="btn-success-gradient">
+            <i class="fas fa-rocket me-1"></i>Ir para Promoção
+        </a>
+        <button class="btn-outline" onclick="novaAnalise()">
+            <i class="fas fa-redo me-1"></i>Nova Análise
+        </button>
+    `;
+}
+
+// ============ IPCA Vigente ============
+async function avaliarIPCAVigente() {
+    const ccoId = document.getElementById('cco-ipca-vigente').value.trim();
+    if (!ccoId) return alert('Digite o ID da CCO');
+    
+    const resultDiv = document.getElementById('resultado-ipca-vigente');
+    resultDiv.innerHTML = '<div class="text-center py-3"><div class="spinner"></div></div>';
+    
+    try {
+        const response = await callBackend('avaliar_ipca_vigente', { cco_id: ccoId });
+        
+        if (response.success && response.aplicavel) {
+            currentSession = response.session_id;
+            mostrarPropostasVigente(response);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert-custom alert-warning">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div><strong>Não aplicável:</strong> ${response.motivo || response.error}</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert-custom alert-danger">
+                <i class="fas fa-times-circle"></i>
+                <div><strong>Erro:</strong> ${error.message}</div>
+            </div>
+        `;
+    }
+}
+
+function mostrarPropostasVigente(response) {
+    const p = response.propostas[0];
+    
+    document.getElementById('vigente-proposals-content').innerHTML = `
+        <div class="alert-custom alert-info">
+            <i class="fas fa-calendar"></i>
+            <div><strong>Período:</strong> ${p.target_period} | <strong>Taxa:</strong> ${p.taxa_aplicada} (ref: ${p.taxa_referencia})</div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">R$ ${(p.current_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Valor Atual</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value positive">R$ ${(p.proposed_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Valor Proposto</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value positive">R$ ${(p.impact || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                <div class="stat-label">Impacto</div>
+            </div>
+        </div>
+        
+        <input type="checkbox" id="proposal_vigente" value="${p.correction_id || 'ipca_vigente'}" checked class="d-none">
+    `;
+    
+    document.getElementById('btn-approve-vigente').disabled = false;
+    document.getElementById('resultado-ipca-vigente').innerHTML = '';
+    showSection('section-vigente-proposals');
+}
+
+function voltarVigente() {
+    // Garante que o formulário principal do IPCA Ano Vigente volte a aparecer.
+    showSection('section-vigente-main');
+
+    hideSection('section-vigente-proposals');
+    document.getElementById('resultado-ipca-vigente').innerHTML = '';
+}
+
+// ============ Helpers ============
+function showLoading(text = 'Processando...') {
+    document.getElementById('loading-text').textContent = text;
+    document.getElementById('loading').style.display = 'block';
+}
+
+function hideLoading() {
+    document.getElementById('loading').style.display = 'none';
+}
+
+function showSection(id) {
+    document.getElementById(id).classList.remove('hidden');
+}
+
+function hideSection(id) {
+    document.getElementById(id).classList.add('hidden');
+}
+
+function updateStepIndicator(activeStep, completed = false) {
+    for (let i = 1; i <= 4; i++) {
+        const step = document.getElementById(`step-${i}`);
+        step.classList.remove('active', 'completed');
+        
+        if (i < activeStep || (i === activeStep && completed)) {
+            step.classList.add('completed');
+        } else if (i === activeStep) {
+            step.classList.add('active');
+        }
+    }
+}
+
+function voltarResultados() {
+    hideSection('section-proposals');
+    showSection('section-results');
+    updateStepIndicator(2);
+}
+
+function novaAnalise() {
+    currentSession = null;
+    analysisData = null;
+    proposalsData = null;
+    currentCcoId = null;
+    ocultarCcoInfoBanner();
+
+    // Reseta somente as seções da Análise Completa.
+    // Antes, todas as .content-section da página eram ocultadas, incluindo
+    // a seção principal do modo IPCA Ano Vigente.
+    document.querySelectorAll('#modo-analise .content-section')
+        .forEach(s => s.classList.add('hidden'));
+
+    showSection('section-analysis');
+    updateStepIndicator(1);
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+    exitModal = new bootstrap.Modal(document.getElementById('modalConfirmExit'));
+
+    if (CCO_ID_INICIAL) {
+        document.getElementById('cco-id').value = CCO_ID_INICIAL;
+        iniciarAnalise();
+    } else {
+        document.getElementById('cco-id').value = '';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,257 @@
+<!-- templates/cco_editor/index.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1400px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3">
+                <i class="fas fa-edit me-2"></i>
+                Edição Manual de CCOs
+            </h1>
+            <p class="text-muted mb-0">Edite atributos de CCOs e crie correções do tipo RETIFICAÇÃO</p>
+        </div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item active">Edição de CCOs</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="row">
+        <!-- Card de Pesquisa Rápida -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-search me-2"></i>
+                        Pesquisa Rápida por ID
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Digite o ID da CCO para edição direta.</p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="inputCcoId" 
+                               placeholder="Ex: rWKqVbU4QTiwD75mcPywjAAAAAA">
+                        <button class="btn btn-primary" onclick="buscarCcoPorId()">
+                            <i class="fas fa-arrow-right me-2"></i>Editar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card de Pesquisa Avançada -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-filter me-2"></i>
+                        Pesquisa por Filtros
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Pesquise CCOs por contrato, campo ou remessa.</p>
+                    <a href="{{ url_for('cco_editor.pesquisar') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-search me-2"></i>Abrir Pesquisa Avançada
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edições Pendentes -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Edições Pendentes de Promoção
+                </h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="carregarEdicoesPendentes()">
+                    <i class="fas fa-sync-alt me-2"></i>Atualizar
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="loadingEdicoes" class="text-center py-4" style="display: none;">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2 text-muted">Carregando...</p>
+            </div>
+            
+            <div id="listaEdicoes">
+                <div class="text-center py-4 text-muted">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Carregando edições pendentes...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Informações -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Como funciona</h6>
+                </div>
+                <div class="card-body">
+                    <ol class="mb-0">
+                        <li class="mb-2">Pesquise a CCO que deseja editar</li>
+                        <li class="mb-2">Altere os campos desejados (raiz ou correções)</li>
+                        <li class="mb-2">Opcionalmente, adicione uma correção RETIFICAÇÃO</li>
+                        <li class="mb-2">Salve as alterações (serão gravadas em área temporária)</li>
+                        <li class="mb-2">Revise e promova para produção</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Campos Bloqueados</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2"><strong>Raiz da CCO:</strong></p>
+                    <p class="small text-muted">_id, contratoCpp, campo, remessa, faseRemessa, dataReconhecimento, exercicio, periodo, origemDosGastos, version</p>
+                    <p class="small mb-2"><strong>Correções Monetárias:</strong></p>
+                    <p class="small text-muted mb-0">contrato, campo, faseRemessa</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+document.addEventListener('DOMContentLoaded', function() {
+    carregarEdicoesPendentes();
+    
+    // Enter para buscar
+    document.getElementById('inputCcoId').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') buscarCcoPorId();
+    });
+});
+
+function buscarCcoPorId() {
+    const ccoId = document.getElementById('inputCcoId').value.trim();
+    if (!ccoId) {
+        alert('Digite o ID da CCO');
+        return;
+    }
+    window.location.href = `${window.API_PREFIX}/cco-editor/editar/${encodeURIComponent(ccoId)}`;
+}
+
+function carregarEdicoesPendentes() {
+    document.getElementById('loadingEdicoes').style.display = 'block';
+    document.getElementById('listaEdicoes').innerHTML = '';
+    
+    fetch(`${window.API_PREFIX}/cco-editor/api/edicoes-pendentes`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('loadingEdicoes').style.display = 'none';
+            
+            if (data.success && data.edicoes.length > 0) {
+                renderizarEdicoes(data.edicoes);
+            } else {
+                document.getElementById('listaEdicoes').innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                        <p>Nenhuma edição pendente de promoção</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('loadingEdicoes').style.display = 'none';
+            document.getElementById('listaEdicoes').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Erro ao carregar edições: ${error.message}
+                </div>
+            `;
+        });
+}
+
+function renderizarEdicoes(edicoes) {
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>CCO ID</th>
+                        <th>Contrato</th>
+                        <th>Campo</th>
+                        <th>Remessa</th>
+                        <th>Data Edição</th>
+                        <th>Usuário</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    for (const edicao of edicoes) {
+        const dataEdicao = edicao.data_criacao_correcao 
+            ? new Date(edicao.data_criacao_correcao).toLocaleString('pt-BR')
+            : 'N/A';
+        
+        html += `
+            <tr>
+                <td><code class="small">${edicao._id}</code></td>
+                <td>${edicao.contratoCpp || 'N/A'}</td>
+                <td>${edicao.campo || 'N/A'}</td>
+                <td>${edicao.remessa || 'N/A'}</td>
+                <td><small>${dataEdicao}</small></td>
+                <td><small>${edicao.usuario_edicao || 'N/A'}</small></td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a href="${window.API_PREFIX}/cco-editor/revisar/${edicao._id}" class="btn btn-outline-primary" title="Revisar">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="${window.API_PREFIX}/cco-editor/editar/${edicao._id}" class="btn btn-outline-secondary" title="Editar novamente">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button class="btn btn-outline-danger" onclick="descartarEdicao('${edicao._id}')" title="Descartar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+    
+    html += '</tbody></table></div>';
+    document.getElementById('listaEdicoes').innerHTML = html;
+}
+
+function descartarEdicao(ccoId) {
+    if (!confirm('Deseja realmente descartar esta edição? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    fetch(`${window.API_PREFIX}/cco-editor/api/descartar/${encodeURIComponent(ccoId)}`, { method: 'DELETE' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Edição descartada com sucesso!');
+                window.exibirAlertaFlutuante('Edição descartada com sucesso!', 'success');
+                carregarEdicoesPendentes();
+            } else {
+                //alert('Erro ao descartar: ' + (data.error || 'Erro desconhecido'));
+                window.exibirAlertaFlutuante('Erro ao descartar: ' + (data.error || 'Erro desconhecido'), 'danger');
+            }
+        })
+        .catch(error => {
+            //alert('Erro ao descartar edição: ' + error.message);
+            window.exibirAlertaFlutuante('Erro ao descartar edição: ' + error.message, 'danger');
+        });
+}
+</script>
+{% endblock %}

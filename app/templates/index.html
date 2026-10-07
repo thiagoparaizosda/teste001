@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --card-gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --card-gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --card-gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --card-gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        --shadow-light: 0 10px 30px rgba(0,0,0,0.1);
+        --shadow-hover: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    body { background: var(--primary-gradient); min-height: 100vh; }
+
+    .hero-section {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 50px 40px;
+        margin: 30px 0;
+        text-align: center;
+        color: white;
+        box-shadow: var(--shadow-light);
+    }
+
+    .hero-title { font-size: 3rem; font-weight: 700; margin-bottom: 15px; }
+    .hero-subtitle { font-size: 1.2rem; opacity: 0.9; }
+
+    .funcionalidades-container {
+        background: rgba(255, 255, 255, 0.97);
+        border-radius: 20px;
+        padding: 40px;
+        margin-bottom: 30px;
+        box-shadow: var(--shadow-light);
+    }
+
+    .section-title {
+        font-size: 1.6rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 25px;
+        padding-bottom: 12px;
+        border-bottom: 3px solid #667eea;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .funcionalidade-card {
+        background: white;
+        border-radius: 16px;
+        padding: 28px 22px;
+        text-align: center;
+        box-shadow: var(--shadow-light);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .funcionalidade-card:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--shadow-hover);
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .funcionalidade-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 4px;
+        background: var(--card-gradient-1);
+    }
+
+    .funcionalidade-card.card-2::before { background: var(--card-gradient-2); }
+    .funcionalidade-card.card-3::before { background: var(--card-gradient-3); }
+    .funcionalidade-card.card-4::before { background: var(--card-gradient-4); }
+
+    .card-icon {
+        font-size: 2.8rem;
+        margin-bottom: 18px;
+        background: var(--card-gradient-1);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .card-2 .card-icon { background: var(--card-gradient-2); -webkit-background-clip: text; }
+    .card-3 .card-icon { background: var(--card-gradient-3); -webkit-background-clip: text; }
+    .card-4 .card-icon { background: var(--card-gradient-4); -webkit-background-clip: text; }
+
+    .card-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; color: #333; }
+    .card-description { color: #666; line-height: 1.5; margin-bottom: 18px; font-size: 0.9rem; flex-grow: 1; }
+
+    .card-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        text-align: left;
+    }
+
+    .card-features li {
+        padding: 3px 0;
+        color: #777;
+        font-size: 0.82rem;
+    }
+
+    .card-features li::before {
+        content: '✓';
+        color: #28a745;
+        font-weight: bold;
+        margin-right: 6px;
+    }
+
+    .badge-novo {
+        position: absolute;
+        top: 12px; right: 12px;
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        color: #155724;
+        font-size: 0.65rem;
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    /* Tool Cards - Compactos */
+    .tool-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        height: 100%;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        border-left: 4px solid #667eea;
+    }
+
+    .tool-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .tool-card.ipca { border-left-color: #667eea; }
+    .tool-card.promocao { border-left-color: #f5576c; }
+    .tool-card.editor { border-left-color: #43e97b; }
+    .tool-card.recalculo { border-left-color: #4facfe; }
+
+    .tool-icon {
+        width: 42px; height: 42px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: white;
+        margin-bottom: 12px;
+    }
+
+    .tool-icon.ipca { background: var(--card-gradient-1); }
+    .tool-icon.promocao { background: var(--card-gradient-2); }
+    .tool-icon.editor { background: var(--card-gradient-4); }
+    .tool-icon.recalculo { background: var(--card-gradient-3); }
+
+    .tool-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; color: #333; }
+    .tool-desc { font-size: 0.82rem; color: #666; margin-bottom: 0; line-height: 1.4; }
+
+    .fade-in-up { animation: fadeInUp 0.6s ease-out; }
+    .fade-in-up-delay { animation: fadeInUp 0.6s ease-out 0.15s both; }
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section fade-in-up">
+    <h1 class="hero-title">Portal de Análises PPSA</h1>
+    <p class="hero-subtitle">Ferramentas avançadas para análise e gestão de remessas e CCOs</p>
+</div>
+
+<!-- Seção: Análises e Consultas -->
+<div class="funcionalidades-container fade-in-up-delay">
+    <h2 class="section-title">
+        <i class="fas fa-chart-pie"></i>
+        Análises e Consultas
+    </h2>
+    
+    <div class="row g-4">
+        <!-- Card: Análise Remessas x CCOs -->
+        {% if not current_user.is_client() %}
+        <div class="col-lg-6">
+            <a href="{{ url_for('analise_ui.analise_remessas') }}" class="funcionalidade-card d-block">
+                <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+                <h3 class="card-title">Análise Remessas x CCOs</h3>
+                <p class="card-description">
+                    Execute análises completas por filtros em tempo real ou carregue arquivos JSON para dashboards interativos.
+                </p>
+                <ul class="card-features">
+                    <li>Análise em tempo real por filtros</li>
+                    <li>Pesquisa avançada de remessas</li>
+                    <li>Upload de arquivos JSON</li>
+                    <li>Dashboard interativo</li>
+                    <li>Exportação de relatórios</li>
+                </ul>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Card: Pesquisa de CCOs -->
+        <div class="col-lg-6">
+            <a href="{{ url_for('portal_ui.pesquisa_ccos') }}" class="funcionalidade-card card-2 d-block">
+                <div class="card-icon"><i class="fas fa-search"></i></div>
+                <h3 class="card-title">Pesquisa de CCOs</h3>
+                <p class="card-description">
+                    Pesquise CCOs diretamente no banco de dados usando filtros avançados ou ID específico.
+                </p>
+                <ul class="card-features">
+                    <li>Pesquisa por ID ou filtros</li>
+                    <li>Filtros por contrato, campo, remessa</li>
+                    <li>Timeline completa de cada CCO</li>
+                    <li>Valores atualizados em tempo real</li>
+                    <li>Exportação de resultados</li>
+                </ul>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Seção: Ferramentas de Correção e Edição -->
+<div class="funcionalidades-container fade-in-up-delay">
+    <h2 class="section-title">
+        <i class="fas fa-tools"></i>
+        Ferramentas de Correção e Edição
+    </h2>
+    
+    <div class="row g-4">
+        <!-- Tool Card: Recálculo TP -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ url_for('recalculo_ui.index_recalculo') }}" class="tool-card recalculo">
+                <div class="tool-icon recalculo"><i class="fas fa-calculator"></i></div>
+                <h4 class="tool-title">Recálculo TP</h4>
+                <p class="tool-desc">
+                    Execute recálculos de Track Participation com comparação de resultados e aplicação controlada.
+                </p>
+            </a>
+        </div>
+
+        <!-- Tool Card: Verificar IPCA/IGPM -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ url_for('ipca_correcao.index') }}" class="tool-card ipca">
+                <span class="badge-novo">Novo</span>
+                <div class="tool-icon ipca"><i class="fas fa-percentage"></i></div>
+                <h4 class="tool-title">Verificar IPCA/IGPM</h4>
+                <p class="tool-desc">
+                    Analise e identifique gaps de correções monetárias, duplicatas e inconsistências em CCOs.
+                </p>
+            </a>
+        </div>
+
+        <!-- Tool Card: Promover Correções -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ url_for('ipca_promocao.index') }}" class="tool-card promocao">
+                <span class="badge-novo">Novo</span>
+                <div class="tool-icon promocao"><i class="fas fa-rocket"></i></div>
+                <h4 class="tool-title">Promover Correções</h4>
+                <p class="tool-desc">
+                    Revise e promova correções de IPCA/IGPM pendentes para o ambiente de produção.
+                </p>
+            </a>
+        </div>
+
+        <!-- Tool Card: Editor de CCOs -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ url_for('cco_editor.index') }}" class="tool-card editor">
+                <span class="badge-novo">Novo</span>
+                <div class="tool-icon editor"><i class="fas fa-edit"></i></div>
+                <h4 class="tool-title">Editor de CCOs</h4>
+                <p class="tool-desc">
+                    Edite atributos de CCOs manualmente e crie correções do tipo RETIFICAÇÃO.
+                </p>
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

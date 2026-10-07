@@ -1,0 +1,646 @@
+<!-- templates/cco_editor/pesquisar.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .resultados-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .resultados-header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 12px;
+        width: 100%;
+    }
+
+    .resultados-header-top,
+    .resultados-header-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        width: 100%;
+    }
+
+    .resultados-header-top {
+        align-items: flex-start;
+    }
+
+    .resultados-header-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    #containerExibirDataTableEdicao,
+    #containerPesquisaDataTableEdicao {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    #containerExibirDataTableEdicao .dataTables_length,
+    #containerPesquisaDataTableEdicao .dataTables_filter {
+        display: inline-flex;
+        align-items: center;
+        margin: 0 !important;
+    }
+
+    #containerExibirDataTableEdicao .dataTables_length label,
+    #containerPesquisaDataTableEdicao .dataTables_filter label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        white-space: nowrap;
+    }
+
+    #containerExibirDataTableEdicao .dataTables_length select,
+    #containerPesquisaDataTableEdicao .dataTables_filter input {
+        margin-left: 0 !important;
+    }
+
+    #containerPesquisaDataTableEdicao .dataTables_filter input {
+        width: 180px;
+    }
+
+    #containerPesquisaDataTableEdicao.ocultar-pesquisa-datatable {
+        display: none !important;
+    }
+
+    #tabelaCCOsEdicao_wrapper {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Os controles nativos são reposicionados no cabeçalho customizado. */
+    #tabelaCCOsEdicao_wrapper > .row:first-child {
+        display: none !important;
+    }
+
+    #tabelaCCOsEdicao_wrapper > .row:last-child {
+        width: 100%;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    #tabelaCCOsEdicao_wrapper .dataTables_info {
+        text-align: left !important;
+        padding-top: 12px;
+    }
+
+    #tabelaCCOsEdicao_wrapper .dataTables_paginate {
+        text-align: right !important;
+        padding-top: 8px;
+    }
+
+    .resultados-table-responsive {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    #tabelaCCOsEdicao {
+        width: 100% !important;
+        margin-bottom: 0 !important;
+        white-space: nowrap;
+    }
+
+    #tabelaCCOsEdicao th,
+    #tabelaCCOsEdicao td {
+        text-align: left !important;
+        vertical-align: middle;
+    }
+
+    .btn-tabela-acao {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        line-height: 1.2;
+        min-height: 31px;
+        min-width: 78px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        white-space: nowrap;
+    }
+
+    .btn-tabela-acao i {
+        margin-right: 0 !important;
+    }
+
+    .status-badge-edicao {
+        font-size: 0.8em;
+        padding: 4px 8px;
+    }
+
+    .valor-monetario-tabela {
+        font-family: 'Consolas', monospace;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        .resultados-header-top,
+        .resultados-header-bottom {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .resultados-header-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1400px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="fas fa-search me-2"></i>
+            Pesquisar CCO para Edição
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('cco_editor.index') }}">Edição CCO</a></li>
+                <li class="breadcrumb-item active">Pesquisar</li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Formulário de Pesquisa -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Pesquisa</h5>
+        </div>
+        <div class="card-body">
+            <form id="formPesquisa" onsubmit="pesquisar(); return false;">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">ID da CCO</label>
+                        <input type="text" class="form-control" id="filtro_cco_id" 
+                               placeholder="ID completo da CCO">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Contrato CPP</label>
+                        <select class="form-select" id="filtro_contrato" onchange="carregarCampos()">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Campo</label>
+                        <select class="form-select" id="filtro_campo" disabled>
+                            <option value="">Selecione o contrato primeiro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Remessa</label>
+                        <input type="number" class="form-control" id="filtro_remessa" 
+                               placeholder="Número da remessa">
+                    </div>
+                    <div class="col-md-9 mb-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-search me-2"></i>Pesquisar
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="limparFiltros()">
+                            <i class="fas fa-eraser me-2"></i>Limpar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="resultados-container">
+        <div class="resultados-header">
+            <div class="resultados-header-top">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Resultados da Pesquisa
+                </h5>
+
+                <span id="totalResultados" class="badge bg-primary">0 resultado(s)</span>
+            </div>
+
+            <div class="resultados-header-bottom"
+                 id="controlesResultadosEdicao"
+                 style="display: none;">
+                <div id="containerExibirDataTableEdicao"></div>
+
+                <div class="resultados-header-actions">
+                    <div id="containerPesquisaDataTableEdicao"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingResultados" class="text-center py-5" style="display: none;">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted">Pesquisando...</p>
+        </div>
+
+        <div id="estadoInicialResultados" class="text-center py-5 text-muted">
+            <i class="fas fa-search fa-3x mb-3"></i>
+            <p>Use os filtros acima para pesquisar CCOs</p>
+        </div>
+
+        <div id="mensagemResultados"></div>
+
+        <div id="containerTabelaResultadosEdicao"
+             class="resultados-table-responsive"
+             style="display: none;">
+            <table id="tabelaCCOsEdicao"
+                   class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ações</th>
+                        <th>ID</th>
+                        <th>Contrato</th>
+                        <th>Campo</th>
+                        <th>Remessa</th>
+                        <th>Fase</th>
+                        <th>Valor c/ OH</th>
+                        <th>Correções</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+let totalResultadosAtual = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    carregarContratos();
+});
+
+function carregarContratos() {
+    fetch(`${window.API_PREFIX}/cco-editor/api/contratos`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('filtro_contrato');
+                select.innerHTML = '<option value="">Selecione...</option>';
+                data.contratos.forEach(contrato => {
+                    select.innerHTML += `<option value="${contrato}">${contrato}</option>`;
+                });
+            }
+        })
+        .catch(error => console.error('Erro ao carregar contratos:', error));
+}
+
+function carregarCampos() {
+    const contrato = document.getElementById('filtro_contrato').value;
+    const selectCampo = document.getElementById('filtro_campo');
+    
+    if (!contrato) {
+        selectCampo.innerHTML = '<option value="">Selecione o contrato primeiro</option>';
+        selectCampo.disabled = true;
+        return;
+    }
+    
+    fetch(`${window.API_PREFIX}/cco-editor/api/campos-por-contrato/${encodeURIComponent(contrato)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                selectCampo.innerHTML = '<option value="">Todos os campos</option>';
+                data.campos.forEach(campo => {
+                    selectCampo.innerHTML += `<option value="${campo}">${campo}</option>`;
+                });
+                selectCampo.disabled = false;
+            }
+        })
+        .catch(error => console.error('Erro ao carregar campos:', error));
+}
+
+function limparFiltros() {
+    document.getElementById('filtro_cco_id').value = '';
+    document.getElementById('filtro_contrato').value = '';
+
+    const selectCampo = document.getElementById('filtro_campo');
+    selectCampo.innerHTML = '<option value="">Selecione o contrato primeiro</option>';
+    selectCampo.disabled = true;
+
+    document.getElementById('filtro_remessa').value = '';
+
+    totalResultadosAtual = 0;
+
+    document.getElementById('totalResultados').textContent = '0 resultado(s)';
+    document.getElementById('estadoInicialResultados').style.display = 'block';
+    document.getElementById('mensagemResultados').innerHTML = '';
+    document.getElementById('containerTabelaResultadosEdicao').style.display = 'none';
+    document.getElementById('controlesResultadosEdicao').style.display = 'none';
+
+    if (datatableEdicaoDisponivel() && $.fn.DataTable.isDataTable('#tabelaCCOsEdicao')) {
+        const tabela = $('#tabelaCCOsEdicao').DataTable();
+        tabela.search('');
+        tabela.clear().draw();
+    } else {
+        document.querySelector('#tabelaCCOsEdicao tbody').innerHTML = '';
+    }
+
+    atualizarVisibilidadePesquisaDataTableEdicao(0);
+}
+
+function pesquisar() {
+    const filtros = {
+        cco_id: document.getElementById('filtro_cco_id').value.trim(),
+        contratoCpp: document.getElementById('filtro_contrato').value,
+        campo: document.getElementById('filtro_campo').value,
+        remessa: document.getElementById('filtro_remessa').value
+    };
+    
+    // Validar que pelo menos um filtro foi preenchido
+    if (!filtros.cco_id && !filtros.contratoCpp && !filtros.remessa) {
+        alert('Preencha ao menos um filtro para pesquisar');
+        return;
+    }
+    
+    document.getElementById('loadingResultados').style.display = 'block';
+    document.getElementById('estadoInicialResultados').style.display = 'none';
+    document.getElementById('mensagemResultados').innerHTML = '';
+    document.getElementById('containerTabelaResultadosEdicao').style.display = 'none';
+    
+    fetch(`${window.API_PREFIX}/cco-editor/api/pesquisar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(filtros)
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('loadingResultados').style.display = 'none';
+        
+        if (data.success) {
+            renderizarResultados(data.resultados, data.total);
+        } else {
+            totalResultadosAtual = 0;
+            document.getElementById('totalResultados').textContent = '0 resultado(s)';
+            document.getElementById('controlesResultadosEdicao').style.display = 'none';
+            document.getElementById('containerTabelaResultadosEdicao').style.display = 'none';
+
+            document.getElementById('mensagemResultados').innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${data.error || 'Erro na pesquisa'}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        document.getElementById('loadingResultados').style.display = 'none';
+        totalResultadosAtual = 0;
+        document.getElementById('totalResultados').textContent = '0 resultado(s)';
+        document.getElementById('controlesResultadosEdicao').style.display = 'none';
+        document.getElementById('containerTabelaResultadosEdicao').style.display = 'none';
+
+        document.getElementById('mensagemResultados').innerHTML = `
+            <div class="alert alert-danger mb-0">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Erro na pesquisa: ${error.message}
+            </div>
+        `;
+    });
+}
+
+function datatableEdicaoDisponivel() {
+    return Boolean(window.jQuery && $.fn && $.fn.DataTable);
+}
+
+function formatarMoedaTabela(valor) {
+    const numero = Number(valor || 0);
+
+    return 'R$ ' + numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function renderizarResultados(resultados, total) {
+    totalResultadosAtual = Number(total ?? resultados.length ?? 0);
+
+    const totalSpan = document.getElementById('totalResultados');
+    const tbody = document.querySelector('#tabelaCCOsEdicao tbody');
+    const containerTabela = document.getElementById('containerTabelaResultadosEdicao');
+    const controles = document.getElementById('controlesResultadosEdicao');
+    const mensagem = document.getElementById('mensagemResultados');
+
+    totalSpan.textContent = `${totalResultadosAtual} resultado(s)`;
+    mensagem.innerHTML = '';
+
+    if (!resultados || resultados.length === 0) {
+        if (datatableEdicaoDisponivel() && $.fn.DataTable.isDataTable('#tabelaCCOsEdicao')) {
+            const tabelaVazia = $('#tabelaCCOsEdicao').DataTable();
+            tabelaVazia.search('');
+            tabelaVazia.clear().draw();
+        } else {
+            tbody.innerHTML = '';
+        }
+
+        controles.style.display = 'none';
+        containerTabela.style.display = 'none';
+
+        mensagem.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>Nenhuma CCO encontrada com os filtros informados</p>
+            </div>
+        `;
+
+        atualizarVisibilidadePesquisaDataTableEdicao(0);
+        return;
+    }
+
+    const linhas = resultados.map(cco => {
+        const recuperada = Boolean(cco.flgRecuperado);
+
+        return [
+            `<a href="${window.API_PREFIX}/cco-editor/editar/${encodeURIComponent(cco.id)}"
+                class="btn btn-primary btn-sm btn-tabela-acao"
+                title="Editar CCO">
+                <i class="fas fa-edit"></i>Editar
+             </a>`,
+
+            `<code style="font-size: 0.8em;">${cco.id ?? ''}</code>`,
+
+            cco.contratoCpp ?? '',
+
+            cco.campo ?? '',
+
+            `<span class="badge bg-info">${cco.remessa ?? ''}</span>`,
+
+            `<span class="badge bg-secondary">${cco.faseRemessa ?? ''}</span>`,
+
+            `<span class="valor-monetario-tabela">
+                ${formatarMoedaTabela(cco.valorReconhecidoComOH)}
+             </span>`,
+
+            `<span class="badge ${Number(cco.totalCorrecoes || 0) > 0
+                ? 'bg-warning text-dark'
+                : 'bg-light text-dark'}">
+                ${Number(cco.totalCorrecoes || 0)}
+             </span>`,
+
+            `<span class="status-badge-edicao badge ${recuperada
+                ? 'bg-danger'
+                : 'bg-success'}">
+                ${recuperada ? 'Recuperada' : 'Ativa'}
+             </span>`
+        ];
+    });
+
+    containerTabela.style.display = 'block';
+    controles.style.display = 'flex';
+
+    if (!datatableEdicaoDisponivel()) {
+        console.warn(
+            'DataTables ainda não está disponível. Resultados renderizados sem paginação nesta busca.'
+        );
+
+        tbody.innerHTML = linhas.map(colunas =>
+            `<tr>${colunas.map(valor => `<td>${valor}</td>`).join('')}</tr>`
+        ).join('');
+
+        atualizarVisibilidadePesquisaDataTableEdicao(totalResultadosAtual);
+        return;
+    }
+
+    if (!$.fn.DataTable.isDataTable('#tabelaCCOsEdicao')) {
+        $('#tabelaCCOsEdicao').DataTable({
+            data: linhas,
+
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+            },
+
+            pageLength: 25,
+            scrollX: true,
+
+            // Mantém o mesmo padrão da Pesquisa de CCOs:
+            // remessa decrescente.
+            order: [[4, 'desc']],
+
+            columnDefs: [
+                { targets: [0], orderable: false },
+                { targets: '_all', className: 'text-start' }
+            ],
+
+            initComplete: function() {
+                const tabelaInicializada = this.api();
+
+                tabelaInicializada.columns.adjust();
+
+                posicionarControlesResultadosEdicao();
+                atualizarVisibilidadePesquisaDataTableEdicao(
+                    totalResultadosAtual
+                );
+            }
+        });
+    } else {
+        const tabela = $('#tabelaCCOsEdicao').DataTable();
+
+        // Toda nova pesquisa começa sem filtro residual da pesquisa anterior.
+        tabela.search('');
+        tabela.clear();
+        tabela.rows.add(linhas);
+        tabela.draw();
+        tabela.columns.adjust().draw(false);
+    }
+
+    posicionarControlesResultadosEdicao();
+    atualizarVisibilidadePesquisaDataTableEdicao(totalResultadosAtual);
+}
+
+function atualizarVisibilidadePesquisaDataTableEdicao(
+    total = totalResultadosAtual
+) {
+    const containerPesquisa =
+        document.getElementById('containerPesquisaDataTableEdicao');
+
+    if (!containerPesquisa) {
+        return;
+    }
+
+    // Igual à tela Pesquisa de CCOs:
+    // pesquisa interna só aparece quando há mais de um resultado.
+    containerPesquisa.classList.toggle(
+        'ocultar-pesquisa-datatable',
+        Number(total) <= 1
+    );
+}
+
+function posicionarControlesResultadosEdicao() {
+    const containerExibir =
+        document.getElementById('containerExibirDataTableEdicao');
+
+    const containerPesquisa =
+        document.getElementById('containerPesquisaDataTableEdicao');
+
+    atualizarVisibilidadePesquisaDataTableEdicao(totalResultadosAtual);
+
+    function moverControles() {
+        const lengthDataTable =
+            document.getElementById('tabelaCCOsEdicao_length');
+
+        const filtroDataTable =
+            document.getElementById('tabelaCCOsEdicao_filter');
+
+        if (
+            lengthDataTable
+            && containerExibir
+            && !containerExibir.contains(lengthDataTable)
+        ) {
+            containerExibir.appendChild(lengthDataTable);
+        }
+
+        if (
+            filtroDataTable
+            && containerPesquisa
+            && !containerPesquisa.contains(filtroDataTable)
+        ) {
+            containerPesquisa.appendChild(filtroDataTable);
+        }
+
+        atualizarVisibilidadePesquisaDataTableEdicao(
+            totalResultadosAtual
+        );
+    }
+
+    try {
+        moverControles();
+
+        // Proteção para o carregamento assíncrono da tradução do DataTables.
+        setTimeout(moverControles, 0);
+        setTimeout(moverControles, 100);
+        setTimeout(moverControles, 300);
+    } catch (erroControles) {
+        console.error(
+            'Erro ao posicionar controles da tabela de edição:',
+            erroControles
+        );
+    }
+}
+</script>
+{% endblock %}

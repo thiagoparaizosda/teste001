@@ -1,0 +1,561 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block styles %}
+<style>
+.filter-card .card-header { background: var(--ppsa-gradient); color: white; }
+.kpi-mini { border-left: 4px solid transparent; }
+.kpi-mini.green  { border-left-color: #48bb78; }
+.kpi-mini.red    { border-left-color: #f56565; }
+.kpi-mini.yellow { border-left-color: #ecc94b; }
+.kpi-mini.blue   { border-left-color: #4299e1; }
+.kpi-mini.purple { border-left-color: #805ad5; }
+.kpi-num { font-size: 1.4rem; font-weight: 700; font-family: 'Courier New', monospace; }
+.table-fixed { max-height: 400px; overflow-y: auto; }
+.table-fixed thead th {
+    position: sticky; top: 0; z-index: 5;
+    background: #f8fafc; font-size: 10px;
+    text-transform: uppercase; letter-spacing: .4px; white-space: nowrap;
+}
+.table td { font-size: 12px; vertical-align: middle; white-space: nowrap; }
+.mono { font-family: 'Courier New', monospace; }
+.st-ok   { background:#c6f6d5; color:#22543d; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-warn { background:#fefcbf; color:#744210; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-err  { background:#fed7d7; color:#742a2a; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+.st-na   { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; padding:2px 7px; border-radius:3px; }
+
+.row-err  > td { background-color: #fff5f5 !important; }
+.row-warn > td { background-color: #fffff0 !important; }
+.table-hover .row-err:hover  > td { background-color: #fed7d780 !important; }
+.table-hover .row-warn:hover > td { background-color: #fefcbf80 !important; }
+
+.badge-ajuste { background:#bee3f8; color:#2a4365; font-size:10px; font-weight:700; }
+.badge-primaria { background:#e2e8f0; color:#4a5568; font-size:10px; font-weight:700; }
+
+#loadingOverlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.45); z-index:9999;
+    align-items:center; justify-content:center;
+}
+#loadingOverlay.show { display:flex; }
+.spinner-box { background:#fff; border-radius:12px; padding:32px 48px; text-align:center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1700px;">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="fas fa-layer-group me-2" style="color:#667eea"></i>
+                Verificação de IPCA/IGPM em Lote
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0" style="font-size:13px">
+                    <li class="breadcrumb-item"><a href="{{ url_for('portal_ui.index') }}">Portal</a></li>
+                    <li class="breadcrumb-item active">Verificação de IPCA/IGPM em Lote</li>
+                </ol>
+            </nav>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalHelp">
+            <i class="fas fa-circle-question me-1"></i>Como funciona
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card filter-card shadow-sm mb-4">
+        <div class="card-header py-2">
+            <h6 class="mb-0 text-white"><i class="fas fa-filter me-2"></i>Busca de CCOs</h6>
+        </div>
+        <div class="card-body">
+
+            <div class="alert alert-info py-2 mb-3" style="font-size:11px">
+                <i class="fas fa-info-circle me-1"></i>
+                A análise em lote usa a base <strong>PRD</strong> para os dados das CCOs e a base <strong>DEV</strong>
+                para armazenar as sessões de análise — o mesmo par usado pela tela individual de
+                <a href="{{ url_for('ipca_correcao.index') }}" target="_blank">Verificar Correções IPCA/IGPM</a>.
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">ID da CCO</label>
+                    <input type="text" class="form-control form-control-sm" id="cco_id" placeholder="ID exato">
+                </div>
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Contrato CPP</label>
+                    <select class="form-select form-select-sm" id="contratoCpp">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Campo</label>
+                    <select class="form-select form-select-sm" id="campo">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Remessa</label>
+                    <input type="number" class="form-control form-control-sm" id="remessa" placeholder="ex: 10003">
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Fase</label>
+                    <select class="form-select form-select-sm" id="faseRemessa">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-4 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Origem</label>
+                    <select class="form-select form-select-sm" id="origemDosGastos">
+                        <option value="">Todas</option>
+                        <option value="GASTO_EXCLUSIVO">Exclusivo</option>
+                        <option value="GASTO_JAZIDA_COMPARTILHADA">Jazida Compartilhada</option>
+                        <option value="GASTO_ATIVO_COMPARTILHADO">Ativo Compartilhado</option>
+                        <option value="GASTO_AEGV">AEGV</option>
+                    </select>
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Exercício</label>
+                    <input type="number" class="form-control form-control-sm" id="exercicio" placeholder="ex: 2024">
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Período</label>
+                    <input type="number" class="form-control form-control-sm" id="periodo" placeholder="ex: 6">
+                </div>
+                <div class="col-lg-1 col-md-3 col-sm-6">
+                    <label class="form-label fw-semibold" style="font-size:12px">Limite</label>
+                    <select class="form-select form-select-sm" id="limite">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="{{ limite_maximo }}">{{ limite_maximo }}</option>
+                    </select>
+                </div>
+                <div class="col-12 d-flex gap-2 mt-1">
+                    <button class="btn btn-primary btn-sm px-4" id="btnBuscar">
+                        <i class="fas fa-search me-1"></i>Buscar CCOs
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnLimpar">
+                        <i class="fas fa-eraser me-1"></i>Limpar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de CCOs encontradas -->
+    <div id="tabelaBuscaWrap" style="display:none" class="card shadow-sm mb-4">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span class="fw-bold" style="font-size:13px">
+                <i class="fas fa-list me-1"></i>CCOs encontradas
+                <span class="badge bg-secondary ms-1" id="totalEncontradas">0</span>
+            </span>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-outline-secondary btn-sm" id="btnSelectAll">
+                    <i class="fas fa-check-double me-1"></i>Selec. todas
+                </button>
+                <button class="btn btn-success btn-sm" id="btnAnalisar" disabled>
+                    <i class="fas fa-magnifying-glass-chart me-1"></i>
+                    Analisar (<span id="qtdSelecionadas">0</span>)
+                </button>
+            </div>
+        </div>
+        <div class="table-fixed">
+            <table class="table table-hover table-sm mb-0" id="tblBusca">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="chkAll"></th>
+                        <th>ID CCO</th><th>Contrato</th><th>Campo</th>
+                        <th>Remessa</th><th>Fase</th><th>Origem</th>
+                        <th class="text-end">Valor c/OH</th><th>Recuperada</th>
+                    </tr>
+                </thead>
+                <tbody id="tblBuscaBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div id="kpiBar" style="display:none" class="row g-3 mb-4">
+        <div class="col"><div class="card kpi-mini blue p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Analisadas</div>
+            <div class="kpi-num text-primary" id="kTotal">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini green p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">OK</div>
+            <div class="kpi-num text-success" id="kOk">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini yellow p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Sem Propostas</div>
+            <div class="kpi-num text-warning" id="kSemPropostas">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini red p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Erro</div>
+            <div class="kpi-num text-danger" id="kErro">—</div>
+        </div></div>
+        <div class="col"><div class="card kpi-mini purple p-3">
+            <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px">Ajuste Recuperação</div>
+            <div class="kpi-num" style="color:#805ad5" id="kAjusteRecuperacao">—</div>
+            <div class="text-muted" style="font-size:9px">CCOs com proposta alternativa</div>
+        </div></div>
+    </div>
+
+    <!-- Barra de ações -->
+    <div id="actionBar" style="display:none" class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+        <input type="text" class="form-control form-control-sm" style="width:220px"
+               id="filtroResultado" placeholder="Filtrar ID, contrato..." oninput="filtrarResultado()">
+        <select class="form-select form-select-sm" style="width:220px" onchange="filtrarStatus(this.value)">
+            <option value="">Todos os status</option>
+            <option value="OK">✅ OK</option>
+            <option value="SEM_PROPOSTAS">— Sem propostas</option>
+            <option value="ERRO">✗ Erro</option>
+            <option value="ERRO_PROPOSTAS">✗ Erro ao gerar propostas</option>
+        </select>
+        <button class="btn btn-success btn-sm ms-auto" id="btnCsv">
+            <i class="fas fa-download me-1"></i>Exportar CSV
+        </button>
+    </div>
+
+    <!-- Tabela de resultados -->
+    <div id="tabelaResultadoWrap" style="display:none" class="card shadow-sm">
+        <div class="card-header py-2 d-flex align-items-center gap-3 flex-wrap">
+            <span class="fw-bold" style="font-size:13px">
+                <i class="fas fa-chart-bar me-1"></i>Resultado da Análise IPCA/IGPM
+            </span>
+            <span class="text-muted" style="font-size:11px">
+                Quando a CCO tem proposta alternativa, é exibida apenas a de <strong>Ajuste de Recuperação</strong>
+                (Compensação não é mais utilizada).
+            </span>
+        </div>
+        <div class="table-fixed" style="max-height:600px">
+            <table class="table table-hover table-sm mb-0" id="tblResultado">
+                <thead>
+                    <tr>
+                        <th>ID CCO</th>
+                        <th>Contrato</th>
+                        <th>Campo</th>
+                        <th>Remessa</th>
+                        <th>Fase</th>
+                        <th>Cenário</th>
+                        <th>Tipo Proposta</th>
+                        <th class="text-end">Qtd Propostas</th>
+                        <th class="text-end">Impacto Total (R$)</th>
+                        <th>Status</th>
+                        <th>Erro</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tblResultadoBody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer text-muted py-2" style="font-size:11px" id="rodapeResultado"></div>
+    </div>
+
+</div>
+
+<!-- Loading -->
+<div id="loadingOverlay">
+    <div class="spinner-box">
+        <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem"></div>
+        <div class="fw-semibold" id="loadingMsg">Processando...</div>
+        <div class="text-muted" style="font-size:12px">Analisando gaps, correções fora de período e duplicatas...</div>
+    </div>
+</div>
+
+<!-- Modal Help -->
+<div class="modal fade" id="modalHelp" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:var(--ppsa-gradient)">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-circle-question me-2"></i>Como funciona a Verificação de IPCA/IGPM em Lote
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="font-size:13px">
+                <p>
+                    Esta tela executa, para cada CCO selecionada, exatamente a mesma análise da tela
+                    <a href="{{ url_for('ipca_correcao.index') }}" target="_blank">Verificar Correções IPCA/IGPM</a>
+                    (identificação de gaps, correções fora de período, duplicatas e geração de propostas de
+                    correção) — apenas em lote, uma CCO por vez.
+                </p>
+                <h6 class="text-primary mt-3"><i class="fas fa-code-branch me-1"></i>Ajuste de Recuperação x Compensação</h6>
+                <p style="font-size:12px">
+                    Quando o cenário detectado de uma CCO gera uma proposta alternativa (Ajuste de Recuperação
+                    vs. Compensação), esta tela — e o CSV exportado — considera <strong>apenas a proposta de
+                    Ajuste de Recuperação</strong>. A abordagem de Compensação não é mais utilizada.
+                </p>
+                <h6 class="text-primary mt-3"><i class="fas fa-lock me-1"></i>Somente análise/relatório</h6>
+                <p style="font-size:12px">
+                    Esta tela não aprova nem aplica correções — apenas identifica e relata. Para aprovar e
+                    aplicar as correções propostas de uma CCO específica, use o link "Ver detalhes" em cada
+                    linha, que abre a tela individual já carregada com a CCO.
+                </p>
+                <h6 class="text-primary mt-3"><i class="fas fa-code-compare me-1"></i>Status</h6>
+                <table class="table table-sm table-bordered" style="font-size:12px">
+                    <thead class="table-light">
+                        <tr><th>Status</th><th>Significado</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="st-ok">✓ OK</span></td><td>Análise concluída, com propostas de correção geradas</td></tr>
+                        <tr><td><span class="st-warn">— Sem propostas</span></td><td>Análise concluída, sem gaps/correções a propor</td></tr>
+                        <tr><td><span class="st-err">✗ Erro</span></td><td>CCO não encontrada ou falha ao iniciar a análise</td></tr>
+                        <tr><td><span class="st-err">✗ Erro proposta</span></td><td>Análise iniciou, mas falhou ao gerar as propostas</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = {
+    contratos    : "{{ url_for('verificacao_ipca.api_contratos') }}",
+    campos       : "{{ url_for('verificacao_ipca.api_campos') }}",
+    fases        : "{{ url_for('verificacao_ipca.api_fases') }}",
+    buscar       : "{{ url_for('verificacao_ipca.api_buscar') }}",
+    analisar     : "{{ url_for('verificacao_ipca.api_analisar') }}",
+    csv          : "{{ url_for('verificacao_ipca.download_csv') }}",
+    ipcaCorrecao : "{{ url_for('ipca_correcao.index') }}",
+};
+
+let _ccosBuscadas = [];
+let _resultados = [];
+let _sid = '';
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([carregarContratos(), carregarFases()]);
+    document.getElementById('contratoCpp').addEventListener('change', carregarCampos);
+    document.getElementById('btnBuscar').addEventListener('click', buscar);
+    document.getElementById('btnLimpar').addEventListener('click', limpar);
+    document.getElementById('btnSelectAll').addEventListener('click', selecionarTodas);
+    document.getElementById('chkAll').addEventListener('change', toggleTodas);
+    document.getElementById('btnAnalisar').addEventListener('click', analisar);
+    document.getElementById('btnCsv').addEventListener('click', () =>
+        window.location = API.csv + (_sid ? `?sid=${_sid}` : ''));
+});
+
+// ---------------------------------------------------------------------------
+// Carregar filtros
+// ---------------------------------------------------------------------------
+
+async function carregarContratos() {
+    const r = await fetch(API.contratos);
+    const d = await r.json();
+    const sel = document.getElementById('contratoCpp');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.contratos || []).forEach(c => sel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+}
+async function carregarCampos() {
+    const c = document.getElementById('contratoCpp').value;
+    const r = await fetch(`${API.campos}?contrato=${encodeURIComponent(c)}`);
+    const d = await r.json();
+    const sel = document.getElementById('campo');
+    sel.innerHTML = '<option value="">Todos</option>';
+    (d.campos || []).forEach(x => sel.insertAdjacentHTML('beforeend', `<option value="${x}">${x}</option>`));
+}
+async function carregarFases() {
+    const r = await fetch(API.fases);
+    const d = await r.json();
+    const sel = document.getElementById('faseRemessa');
+    sel.innerHTML = '<option value="">Todas</option>';
+    (d.fases || []).forEach(f => sel.insertAdjacentHTML('beforeend', `<option value="${f}">${f}</option>`));
+}
+
+// ---------------------------------------------------------------------------
+// Busca
+// ---------------------------------------------------------------------------
+
+async function buscar() {
+    const filtros = {
+        id: document.getElementById('cco_id').value.trim(),
+        contratoCpp: document.getElementById('contratoCpp').value,
+        campo: document.getElementById('campo').value,
+        remessa: document.getElementById('remessa').value,
+        faseRemessa: document.getElementById('faseRemessa').value,
+        origemDosGastos: document.getElementById('origemDosGastos').value,
+        exercicio: document.getElementById('exercicio').value,
+        periodo: document.getElementById('periodo').value,
+        limite: document.getElementById('limite').value,
+    };
+    loading(true, 'Buscando CCOs...');
+    try {
+        const r = await fetch(API.buscar, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(filtros)});
+        const d = await r.json();
+        loading(false);
+        if (!d.success) { alert('Erro: ' + d.error); return; }
+        _ccosBuscadas = d.ccos || [];
+        renderizarBusca(_ccosBuscadas);
+    } catch(e) { loading(false); alert('Erro: ' + e); }
+}
+
+function renderizarBusca(ccos) {
+    const tbody = document.getElementById('tblBuscaBody');
+    tbody.innerHTML = '';
+    document.getElementById('tabelaBuscaWrap').style.display = ccos.length ? '' : 'none';
+    document.getElementById('totalEncontradas').textContent = ccos.length;
+    ccos.forEach(c => {
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr>
+            <td><input type="checkbox" class="cco-chk" value="${c._id}"></td>
+            <td class="mono" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${c._id}">${c._id}</td>
+            <td>${c.contratoCpp||''}</td><td>${c.campo||''}</td>
+            <td class="mono">${c.remessa||''}</td><td>${c.faseRemessa||''}</td>
+            <td style="font-size:10px">${(c.origemDosGastos||'').replace('GASTO_','')}</td>
+            <td class="mono text-end">${fmt(c.valorReconhecidoComOH)}</td>
+            <td class="text-center">${c.flgRecuperado ? '<span class="badge bg-success" style="font-size:9px">✓</span>' : '<span class="text-muted">—</span>'}</td>
+        </tr>`);
+    });
+    document.querySelectorAll('.cco-chk').forEach(chk => chk.addEventListener('change', atualizarBotaoAnalisar));
+}
+
+function atualizarBotaoAnalisar() {
+    const qtd = document.querySelectorAll('.cco-chk:checked').length;
+    document.getElementById('qtdSelecionadas').textContent = qtd;
+    document.getElementById('btnAnalisar').disabled = qtd === 0;
+}
+function toggleTodas() {
+    const checked = document.getElementById('chkAll').checked;
+    document.querySelectorAll('.cco-chk').forEach(c => c.checked = checked);
+    atualizarBotaoAnalisar();
+}
+function selecionarTodas() {
+    document.querySelectorAll('.cco-chk').forEach(c => c.checked = true);
+    document.getElementById('chkAll').checked = true;
+    atualizarBotaoAnalisar();
+}
+
+// ---------------------------------------------------------------------------
+// Análise
+// ---------------------------------------------------------------------------
+
+async function analisar() {
+    const ids = [...document.querySelectorAll('.cco-chk:checked')].map(c => c.value);
+    if (!ids.length) return;
+    loading(true, `Analisando ${ids.length} CCO(s)...`);
+    try {
+        const r = await fetch(API.analisar, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cco_ids: ids})
+        });
+        const d = await r.json();
+        loading(false);
+        if (!d.success) { alert('Erro: ' + d.error); return; }
+        _resultados = d.resultados || [];
+        _sid = d.sid || '';
+        renderizarKpis(d.estatisticas || {});
+        renderizarResultado(_resultados);
+    } catch(e) { loading(false); alert('Erro: ' + e); }
+}
+
+function renderizarKpis(st) {
+    document.getElementById('kTotal').textContent        = st.total ?? '—';
+    document.getElementById('kOk').textContent           = st.ok ?? '—';
+    document.getElementById('kSemPropostas').textContent = st.sem_propostas ?? '—';
+    document.getElementById('kErro').textContent         = (st.erro ?? 0) + (st.erro_propostas ?? 0);
+    document.getElementById('kAjusteRecuperacao').textContent = (st.por_tipo_proposta || {}).AJUSTE_RECUPERACAO ?? 0;
+    document.getElementById('kpiBar').style.display      = '';
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de badge e estilo
+// ---------------------------------------------------------------------------
+
+function statusBadge(s) {
+    if (s === 'OK')             return `<span class="st-ok">✓ OK</span>`;
+    if (s === 'SEM_PROPOSTAS')  return `<span class="st-warn">— Sem propostas</span>`;
+    if (s === 'ERRO')           return `<span class="st-err">✗ Erro</span>`;
+    if (s === 'ERRO_PROPOSTAS') return `<span class="st-err">✗ Erro proposta</span>`;
+    return `<span class="st-na">${s}</span>`;
+}
+function rowClass(s) {
+    if (s === 'ERRO' || s === 'ERRO_PROPOSTAS') return 'row-err';
+    if (s === 'SEM_PROPOSTAS')                  return 'row-warn';
+    return '';
+}
+function tipoPropostaBadge(t) {
+    if (t === 'AJUSTE_RECUPERACAO') return `<span class="badge badge-ajuste">Ajuste Recuperação</span>`;
+    if (t === 'PRIMARIA')           return `<span class="badge badge-primaria">Primária</span>`;
+    return '<span class="text-muted">—</span>';
+}
+
+// ---------------------------------------------------------------------------
+// Renderizar resultado
+// ---------------------------------------------------------------------------
+
+function renderizarResultado(dados) {
+    const tbody = document.getElementById('tblResultadoBody');
+    tbody.innerHTML = '';
+    document.getElementById('tabelaResultadoWrap').style.display = '';
+    document.getElementById('actionBar').style.display = '';
+
+    dados.forEach(r => {
+        const btnDetalhes = `<a class="btn btn-outline-primary btn-sm" style="font-size:10px;padding:2px 8px"
+            href="${API.ipcaCorrecao}?cco_id=${encodeURIComponent(r.cco_id)}" target="_blank">
+            <i class="fas fa-magnifying-glass me-1"></i>Ver detalhes</a>`;
+
+        tbody.insertAdjacentHTML('beforeend', `
+        <tr class="${rowClass(r.status)}" data-status="${r.status}">
+            <td class="mono" style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${r.cco_id}">${r.cco_id}</td>
+            <td>${r.contratoCpp||''}</td>
+            <td>${r.campo||''}</td>
+            <td class="mono">${r.remessa||''}</td>
+            <td>${r.faseRemessa||''}</td>
+            <td class="mono" style="font-size:10px">${r.scenario_detected||'—'}</td>
+            <td>${tipoPropostaBadge(r.tipo_proposta_usada)}</td>
+            <td class="mono text-end">${r.proposals_count ?? 0}</td>
+            <td class="mono text-end">${fmt(r.financial_impact_total)}</td>
+            <td>${statusBadge(r.status)}</td>
+            <td class="text-danger" style="max-width:260px;white-space:normal;font-size:11px">${r.erro||''}</td>
+            <td>${btnDetalhes}</td>
+        </tr>`);
+    });
+
+    document.getElementById('rodapeResultado').textContent = `${dados.length} CCO(s) analisada(s)`;
+}
+
+// ---------------------------------------------------------------------------
+// Filtros de resultado
+// ---------------------------------------------------------------------------
+
+function filtrarResultado() {
+    const q = document.getElementById('filtroResultado').value.toLowerCase();
+    document.querySelectorAll('#tblResultadoBody tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+function filtrarStatus(val) {
+    document.querySelectorAll('#tblResultadoBody tr').forEach(tr => {
+        if (!val) { tr.style.display = ''; return; }
+        tr.style.display = (tr.dataset.status === val) ? '' : 'none';
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Utilitários
+// ---------------------------------------------------------------------------
+
+function fmt(v, dec=2) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString('pt-BR', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+function loading(show, msg) {
+    document.getElementById('loadingOverlay').classList.toggle('show', show);
+    if (msg) document.getElementById('loadingMsg').textContent = msg;
+}
+function limpar() {
+    ['cco_id','remessa','exercicio','periodo'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    ['contratoCpp','campo','faseRemessa','origemDosGastos'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    document.getElementById('limite').value = '50';
+    document.getElementById('tabelaBuscaWrap').style.display = 'none';
+    document.getElementById('tabelaResultadoWrap').style.display = 'none';
+    document.getElementById('actionBar').style.display = 'none';
+    document.getElementById('kpiBar').style.display = 'none';
+    _ccosBuscadas=[]; _resultados=[]; _sid='';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1895 @@
+<!--  /templates/cco_timeline.html -->
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+
+
+{% block styles %}
+<style>
+.timeline-container {
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.timeline-line {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #007bff, #28a745);
+    border-radius: 2px;
+}
+
+.timeline-item {
+    position: relative;
+    margin: 30px 0;
+    display: flex;
+    align-items: center;
+}
+
+.timeline-item:nth-child(odd) {
+    flex-direction: row;
+}
+
+.timeline-item:nth-child(even) {
+    flex-direction: row-reverse;
+}
+
+.timeline-content {
+    width: 45%;
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+.timeline-icon {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    z-index: 10;
+}
+
+.timeline-date {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.valores-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.valor-item {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+    border-left: 3px solid #007bff;
+}
+
+.toggle-detalhes {
+    cursor: pointer;
+    color: #007bff;
+    text-decoration: none;
+    font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.2;
+}
+
+.detalhes-extras {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: none;
+    overflow: hidden;
+}
+
+.detalhe-item {
+    display: grid;
+    grid-template-columns: minmax(180px, 42%) minmax(0, 1fr);
+    column-gap: 18px;
+    row-gap: 4px;
+    align-items: baseline;
+    margin-bottom: 0.65rem;
+}
+
+.detalhe-campo {
+    min-width: 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.detalhe-valor {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+@media (max-width: 576px) {
+    .detalhe-item {
+        grid-template-columns: 1fr;
+        row-gap: 2px;
+    }
+}
+
+.valores-atuais-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.valor-atual-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.valor-atual-principal {
+    border-left-color: #28a745;
+    background: #f8fff9;
+}
+
+.valor-atual-overhead {
+    border-left-color: #ffc107;
+    background: #fffef8;
+}
+
+.valor-atual-extra {
+    border-left-color: #6c757d;
+    background: #f8f9fa;
+}
+
+.valores-extras-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: none;
+}
+
+.status-badge-custom {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+#monaco-editor {
+    height: 500px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.timeline-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.timeline-card.expanded {
+    cursor: default;
+}
+
+.timeline-card.expanded .timeline-body,
+.timeline-card.expanded .detalhes-extras {
+    cursor: default;
+}
+
+.timeline-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.timeline-header {
+    position: relative;
+}
+
+.timeline-toggle-icon {
+    color: #6c757d;
+    font-size: 1.2em;
+    transition: transform 0.3s ease;
+    cursor: pointer;
+    padding: 8px;
+    margin: -8px;
+    line-height: 1;
+}
+
+.timeline-card.expanded .timeline-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.timeline-body {
+    transition: all 0.3s ease;
+}
+
+.timeline-date {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+
+/* Accordion de atributos avançados */
+.atributos-card {
+    border: none;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.atributos-card .card-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.atributos-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.atributos-table td,
+.atributos-table th {
+    vertical-align: middle;
+}
+
+.atributos-table td:nth-child(2) {
+    word-break: break-word;
+}
+
+.atributos-json-preview {
+    max-height: 180px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+}
+
+.badge-tipo-string {
+    background: #6c757d;
+}
+
+.badge-tipo-numero {
+    background: #198754;
+}
+
+.badge-tipo-data {
+    background: #0dcaf0;
+    color: #000;
+}
+
+.badge-tipo-boolean {
+    background: #ffc107;
+    color: #000;
+}
+
+.badge-tipo-object {
+    background: #0d6efd;
+}
+
+.badge-tipo-array {
+    background: #212529;
+}
+
+
+
+/* Busca de atributos */
+.atributos-search-wrapper {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 16px;
+}
+
+.highlight {
+    background-color: #fff3cd !important;
+    transition: background-color 0.3s;
+}
+
+.highlight code {
+    font-weight: bold;
+    color: #d63384;
+}
+
+.atributos-search-info {
+    min-height: 20px;
+}
+
+#search-atributos {
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .atributos-card .card-header {
+        align-items: flex-start !important;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .atributos-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+
+.modal.fallback-modal-show {
+    display: block;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+body.fallback-modal-open {
+    overflow: hidden;
+}
+
+
+.json-preview-popover-custom {
+    position: fixed;
+    z-index: 1085;
+    width: min(620px, calc(100vw - 32px));
+    max-height: 360px;
+    overflow: hidden;
+    background: #212529;
+    color: #f8f9fa;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.75rem 2rem rgba(0,0,0,0.35);
+    display: none;
+}
+
+.json-preview-popover-custom .json-preview-header {
+    background: #343a40;
+    color: #fff;
+    padding: 0.55rem 0.75rem;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.json-preview-popover-custom pre {
+    margin: 0;
+    padding: 0.75rem;
+    max-height: 300px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>
+                    <i class="fas fa-history me-2"></i>
+                    Timeline da CCO
+                </h2>
+                <button class="btn btn-secondary" onclick="window.close()">
+                    <i class="fas fa-times me-1"></i>Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Informações da CCO -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-info-circle me-2"></i>Informações da CCO</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="toggleValoresExtras()">
+                            <i class="fas fa-eye me-1"></i>
+                            <span id="btnToggleText">Mostrar Valores Extras</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary ms-2"
+                                id="btn-json-original"
+                                type="button"
+                                onclick="mostrarJsonOriginal()"
+                                onmouseenter="mostrarPreviewJsonOriginal(event)"
+                                onmouseleave="ocultarPreviewJsonOriginal()"
+                                onfocus="mostrarPreviewJsonOriginal(event)"
+                                onblur="ocultarPreviewJsonOriginal()"
+                                data-json-preview="{{ cco_json[:2500] | e }}">
+                            <i class="fas fa-code me-1"></i>JSON Original
+                        </button>
+                        <button id="btn-exportar-excel-timeline"
+                                class="btn btn-sm btn-outline-success ms-2 btn-exportar-excel-timeline"
+                                onclick="exportarTimelineCco('{{ cco._id }}')"
+                                title="Exportar timeline para Excel">
+                            <i class="fas fa-file-excel me-1"></i>Exportar Excel
+                        </button>   
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Informações básicas -->
+                    <div class="row mb-2">
+                        <div class="col-md-2">
+                            <strong>ID:</strong><br>
+                            <code style="font-size: 1em;">{{ cco._id }}</code>
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Contrato/Campo:</strong><br>
+                            {{ cco.contratoCpp }} / {{ cco.campo }}
+                        </div>
+                        <div class="col-md-1">
+                            <strong>Remessa/Fase:</strong><br>
+                            {{ cco.remessa }} / {{ cco.faseRemessa }}
+                        </div>
+                        <div class="col-md-1">
+                            <strong>Ano / Mês:</strong><br>
+                            {{ cco.anoReconhecimento }} / {{ cco.mesReconhecimento }}
+                        </div>
+                        <div class="col-md-1">
+                            <strong>Período:</strong><br>
+                            {{ cco.periodo }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Data Lançamento</strong><br>
+                            {{ valores_atuais.data_lancamento }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Data Reconhecimento</strong><br>
+                            {{ valores_atuais.data_reconhecimento }}
+                        </div>
+                    </div>
+
+                    <!-- Fonte dos valores atuais -->
+                    <div class="alert alert-info">
+                        <strong><i class="fas fa-info-circle me-2"></i>Valores Atuais:</strong>
+                        {{ valores_atuais.fonte }}
+                        {% if valores_atuais.data_atualizacao %}
+                        - Atualizado em: {{ valores_atuais.data_atualizacao }}
+                        {% endif %}
+                    </div>
+
+                    <!-- Valores principais -->
+                    <div class="valores-atuais-grid">
+                        <div class="valor-atual-item valor-atual-principal">
+                            <small class="text-muted">Valor Reconhecido</small><br>
+                            <strong class="text-success">R$ {{ "{:,.2f}".format(valores_atuais.valorReconhecido).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        
+                        <div class="valor-atual-item valor-atual-principal">
+                            <small class="text-muted">Valor Rec. c/ Overhead</small><br>
+                            <strong class="text-primary">R$ {{ "{:,.2f}".format(valores_atuais.valorReconhecidoComOH).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        
+                        <div class="valor-atual-item valor-atual-overhead">
+                            <small class="text-muted">Overhead Total</small><br>
+                            <strong class="text-warning">R$ {{ "{:,.2f}".format(valores_atuais.overHeadTotal).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        
+                        <div class="valor-atual-item">
+                            <small class="text-muted">Quantidade Lançamentos</small><br>
+                            <strong>{{ valores_atuais.quantidadeLancamento }}</strong>
+                        </div>
+                        
+                        <div class="valor-atual-item">
+                            <small class="text-muted">Status Recuperação</small><br>
+                            <span class="status-badge-custom {% if cco.flgRecuperado %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                                {% if cco.flgRecuperado %}Recuperado{% else %}Não Recuperado{% endif %}
+                            </span>
+                        </div>
+                        
+                        {% if valores_atuais.valorNaoReconhecido > 0 %}
+                        <div class="valor-atual-item">
+                            <small class="text-muted">Valor Não Reconhecido</small><br>
+                            <strong class="text-danger">R$ {{ "{:,.2f}".format(valores_atuais.valorNaoReconhecido).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Valores extras (inicialmente ocultos) -->
+                    <div id="valoresExtrasSection" class="valores-extras-section">
+                        <h6 class="mb-3"><i class="fas fa-list me-2"></i>Valores Detalhados</h6>
+                        
+                        <div class="valores-atuais-grid">
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Valor Lançamento Total</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.valorLancamentoTotal).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Valor Reconhecível</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.valorReconhecivel).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Valor Não Passível Recuperação</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.valorNaoPassivelRecuperacao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Overhead Exploração</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.overHeadExploracao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Overhead Produção</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.overHeadProducao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Valor Reconhecido Exploração</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.valorReconhecidoExploracao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            <div class="valor-atual-item valor-atual-extra">
+                                <small class="text-muted">Valor Reconhecido Produção</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.valorReconhecidoProducao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            
+                            {% if valores_atuais.valorRecuperado > 0 %}
+                            <div class="valor-atual-item">
+                                <small class="text-muted">Valor Recuperado</small><br>
+                                <strong class="text-warning">R$ {{ "{:,.2f}".format(valores_atuais.valorRecuperado).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            {% endif %}
+                            
+                            {% if valores_atuais.taxaCorrecao > 0 %}
+                            <div class="valor-atual-item">
+                                <small class="text-muted">Taxa Correção</small><br>
+                                <strong>{{ "{:.4f}".format(valores_atuais.taxaCorrecao * 100) }}%</strong>
+                            </div>
+                            {% endif %}
+                            
+                            {% if valores_atuais.igpmAcumuladoReais > 0 %}
+                            <div class="valor-atual-item">
+                                <small class="text-muted">IGPM Acumulado (R$)</small><br>
+                                <strong>R$ {{ "{:,.2f}".format(valores_atuais.igpmAcumuladoReais).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Atributos avançados da CCO -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card atributos-card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Todos os Atributos da CCO
+                    </h5>
+
+                    <div class="atributos-actions">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="copiarAtributosJSON(event)">
+                            <i class="fas fa-copy me-1"></i>
+                            Copiar JSON
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-primary"
+                                id="btn-toggle-atributos-avancados"
+                                type="button"
+                                aria-expanded="false"
+                                aria-controls="atributos-avancados"
+                                onclick="toggleAtributosAvancados(event)">
+                            <i class="fas fa-angle-down me-1"></i>
+                            Expandir/Recolher
+                        </button>
+                    </div>
+                </div>
+
+                <div class="collapse" id="atributos-avancados">
+                    <div class="card-body">
+                        <div class="atributos-search-wrapper">
+                            <div class="mb-2">
+                                <input type="text"
+                                       class="form-control"
+                                       id="search-atributos"
+                                       placeholder="🔍 Buscar atributo... (ex: valorReconhecido, dataLancamento)"
+                                       autocomplete="off"
+                                       onkeyup="filtrarAtributosDebounced(event)">
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 atributos-search-info">
+                                <div id="search-results-count" class="text-muted small"></div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="btn-limpar-busca-atributos"
+                                        onclick="limparBuscaAtributos(event)"
+                                        style="display: none;">
+                                    <i class="fas fa-times me-1"></i>Limpar busca
+                                </button>
+                            </div>
+                            <div id="no-results-msg" class="alert alert-warning mt-2 mb-0" style="display: none;">
+                                Nenhum atributo encontrado para "<span id="termo-busca"></span>"
+                            </div>
+                        </div>
+
+                        <div class="accordion" id="accordion-atributos">
+
+                            <!-- Categoria: Identificação -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-identificacao">
+                                    <button class="accordion-button" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-identificacao"
+                                            aria-expanded="true"
+                                            aria-controls="cat-identificacao">
+                                        <i class="fas fa-id-card me-2"></i>
+                                        Identificação
+                                    </button>
+                                </h2>
+
+                                <div id="cat-identificacao"
+                                     class="accordion-collapse collapse show"
+                                     aria-labelledby="heading-identificacao">
+                                    <div class="accordion-body table-responsive">
+                                        <table class="table table-sm table-striped atributos-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Campo</th>
+                                                    <th>Valor</th>
+                                                    <th>Tipo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for campo in ['_id', 'contratoCpp', 'campo', 'remessa', 'faseRemessa', 'periodo', 'anoReconhecimento', 'mesReconhecimento'] %}
+                                                    {% if cco.get(campo) is not none %}
+                                                        {% set valor = cco.get(campo) %}
+                                                        {% set tipo = valor | identificar_tipo_dado %}
+                                                        <tr>
+                                                            <td><code>{{ campo }}</code></td>
+                                                            <td title="{{ valor|string|e }}">
+                                                                {{ valor | formatar_valor_por_tipo }}
+                                                            </td>
+                                                            <td>{{ tipo | formatar_tipo_dado }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Categoria: Valores Financeiros -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-valores">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-valores"
+                                            aria-expanded="false"
+                                            aria-controls="cat-valores">
+                                        <i class="fas fa-dollar-sign me-2"></i>
+                                        Valores Financeiros
+                                    </button>
+                                </h2>
+
+                                <div id="cat-valores"
+                                     class="accordion-collapse collapse"
+                                     aria-labelledby="heading-valores">
+                                    <div class="accordion-body table-responsive">
+                                        <table class="table table-sm table-striped atributos-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Campo</th>
+                                                    <th>Valor</th>
+                                                    <th>Tipo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for campo in [
+                                                    'valorReconhecido',
+                                                    'valorReconhecidoComOH',
+                                                    'valorLancamentoTotal',
+                                                    'valorReconhecivel',
+                                                    'valorNaoReconhecido',
+                                                    'valorNaoPassivelRecuperacao',
+                                                    'overHeadTotal',
+                                                    'overHeadExploracao',
+                                                    'overHeadProducao',
+                                                    'valorReconhecidoExploracao',
+                                                    'valorReconhecidoProducao',
+                                                    'valorRecuperado',
+                                                    'valorRecuperadoTotal',
+                                                    'taxaCorrecao',
+                                                    'igpmAcumulado',
+                                                    'igpmAcumuladoReais',
+                                                    'ipcaAcumulado',
+                                                    'ipcaAcumuladoReais',
+                                                    'diferencaValor',
+                                                    'quantidadeLancamento'
+                                                ] %}
+                                                    {% if cco.get(campo) is not none %}
+                                                        {% set valor = cco.get(campo) %}
+                                                        {% set tipo = valor | identificar_tipo_dado %}
+                                                        <tr>
+                                                            <td><code>{{ campo }}</code></td>
+                                                            <td class="fw-bold" title="{{ valor|string|e }}">
+                                                                {{ valor | formatar_valor_por_tipo }}
+                                                            </td>
+                                                            <td>{{ tipo | formatar_tipo_dado }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Categoria: Datas -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-datas">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-datas"
+                                            aria-expanded="false"
+                                            aria-controls="cat-datas">
+                                        <i class="fas fa-calendar-alt me-2"></i>
+                                        Datas
+                                    </button>
+                                </h2>
+
+                                <div id="cat-datas"
+                                     class="accordion-collapse collapse"
+                                     aria-labelledby="heading-datas">
+                                    <div class="accordion-body table-responsive">
+                                        <table class="table table-sm table-striped atributos-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Campo</th>
+                                                    <th>Valor</th>
+                                                    <th>Tipo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for campo in [
+                                                    'dataLancamento',
+                                                    'dataReconhecimento',
+                                                    'dataCriacao',
+                                                    'dataAtualizacao',
+                                                    'dataCriacaoCorrecao',
+                                                    'dataCorrecao',
+                                                    'createdAt',
+                                                    'updatedAt'
+                                                ] %}
+                                                    {% if cco.get(campo) is not none %}
+                                                        {% set valor = cco.get(campo) %}
+                                                        {% set tipo = valor | identificar_tipo_dado %}
+                                                        <tr>
+                                                            <td><code>{{ campo }}</code></td>
+                                                            <td title="{{ valor|string|e }}">
+                                                                {{ valor | formatar_valor_por_tipo }}
+                                                            </td>
+                                                            <td>{{ tipo | formatar_tipo_dado }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Categoria: Flags e Status -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-flags">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-flags"
+                                            aria-expanded="false"
+                                            aria-controls="cat-flags">
+                                        <i class="fas fa-toggle-on me-2"></i>
+                                        Flags e Status
+                                    </button>
+                                </h2>
+
+                                <div id="cat-flags"
+                                     class="accordion-collapse collapse"
+                                     aria-labelledby="heading-flags">
+                                    <div class="accordion-body table-responsive">
+                                        <table class="table table-sm table-striped atributos-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Campo</th>
+                                                    <th>Valor</th>
+                                                    <th>Tipo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for campo in [
+                                                    'ativo',
+                                                    'flgRecuperado',
+                                                    'recuperado',
+                                                    'corrigido',
+                                                    'processado',
+                                                    'status',
+                                                    'situacao',
+                                                    'tipo',
+                                                    'subTipo',
+                                                    'transferencia'
+                                                ] %}
+                                                    {% if cco.get(campo) is not none %}
+                                                        {% set valor = cco.get(campo) %}
+                                                        {% set tipo = valor | identificar_tipo_dado %}
+                                                        <tr>
+                                                            <td><code>{{ campo }}</code></td>
+                                                            <td title="{{ valor|string|e }}">
+                                                                {{ valor | formatar_valor_por_tipo }}
+                                                            </td>
+                                                            <td>{{ tipo | formatar_tipo_dado }}</td>
+                                                        </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Categoria: Metadados e Outros -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-metadados">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#cat-metadados"
+                                            aria-expanded="false"
+                                            aria-controls="cat-metadados">
+                                        <i class="fas fa-database me-2"></i>
+                                        Metadados e Outros
+                                    </button>
+                                </h2>
+
+                                <div id="cat-metadados"
+                                     class="accordion-collapse collapse"
+                                     aria-labelledby="heading-metadados">
+                                    <div class="accordion-body table-responsive">
+                                        <table class="table table-sm table-striped atributos-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Campo</th>
+                                                    <th>Valor</th>
+                                                    <th>Tipo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% set campos_categorizados = [
+                                                    '_id', 'contratoCpp', 'campo', 'remessa', 'faseRemessa', 'periodo', 'anoReconhecimento', 'mesReconhecimento',
+                                                    'valorReconhecido', 'valorReconhecidoComOH', 'valorLancamentoTotal', 'valorReconhecivel',
+                                                    'valorNaoReconhecido', 'valorNaoPassivelRecuperacao', 'overHeadTotal', 'overHeadExploracao',
+                                                    'overHeadProducao', 'valorReconhecidoExploracao', 'valorReconhecidoProducao', 'valorRecuperado',
+                                                    'valorRecuperadoTotal', 'taxaCorrecao', 'igpmAcumulado', 'igpmAcumuladoReais', 'ipcaAcumulado',
+                                                    'ipcaAcumuladoReais', 'diferencaValor', 'quantidadeLancamento',
+                                                    'dataLancamento', 'dataReconhecimento', 'dataCriacao', 'dataAtualizacao', 'dataCriacaoCorrecao',
+                                                    'dataCorrecao', 'createdAt', 'updatedAt',
+                                                    'ativo', 'flgRecuperado', 'recuperado', 'corrigido', 'processado', 'status', 'situacao',
+                                                    'tipo', 'subTipo', 'transferencia'
+                                                ] %}
+
+                                                {% for campo, valor in cco.items() %}
+                                                    {% if campo not in campos_categorizados %}
+                                                    {% set tipo = valor | identificar_tipo_dado %}
+                                                    <tr>
+                                                        <td><code>{{ campo }}</code></td>
+                                                        <td title="{{ valor|string|e }}">
+                                                            {% if valor is mapping or (valor is sequence and valor is not string) %}
+                                                                <pre class="atributos-json-preview bg-light p-2 rounded">{{ valor | formatar_valor_por_tipo }}</pre>
+                                                            {% else %}
+                                                                {{ valor | formatar_valor_por_tipo }}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ tipo | formatar_tipo_dado }}</td>
+                                                    </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Preview bonito do JSON Original -->
+    <div id="json-original-popover" class="json-preview-popover-custom" role="tooltip">
+        <div class="json-preview-header">
+            <i class="fas fa-code"></i>
+            Prévia do JSON Original
+        </div>
+        <pre id="json-original-popover-content"></pre>
+    </div>
+
+    <!-- Modal para JSON Original -->
+    <div class="modal fade" id="modalJsonOriginal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-code me-2"></i>JSON Original da CCO
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="json-original-preview" class="bg-dark text-light p-3 rounded" style="max-height: 70vh; overflow: auto; font-size: 14px;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="copiarAtributosJSON(event)">
+                        <i class="fas fa-copy me-1"></i>Copiar JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controles da Timeline -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4><i class="fas fa-history me-2"></i>Timeline de Criação e Atualizações</h4>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="expandirTodosCards()">
+                        <i class="fas fa-expand-arrows-alt me-1"></i>Expandir Todos
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="contrairTodosCards()">
+                        <i class="fas fa-compress-arrows-alt me-1"></i>Contrair Todos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Timeline -->
+    <div class="timeline-container">
+        <div class="timeline-line"></div>
+        
+        {% for evento in timeline %}
+        <div class="timeline-item">
+            <div class="timeline-content timeline-card" onclick="toggleCardTimeline(event, {{ loop.index }})">
+                <!-- Header do card (sempre visível) -->
+                <div class="timeline-header">
+                    <div class="timeline-date">
+                        {% if evento.dataCorrecao %}
+                            <i class="fas fa-calendar-alt me-1"></i> {{ evento.dataCorrecaoFormatada }} (Data Correção)
+                        {% else %}
+                            <i class="fas fa-calendar-alt me-1"></i>Data não informada
+                        {% endif %}
+
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ evento.titulo }}</h5>
+                            <p class="text-muted mb-0">{{ evento.descricao }}</p>
+                        </div>
+                        <div class="timeline-toggle-icon" role="button" tabindex="0"
+                             aria-label="Expandir ou recolher card da timeline"
+                             onclick="toggleCardTimeline(event, {{ loop.index }}, true)"
+                             onkeydown="if (event.key === 'Enter' || event.key === ' ') toggleCardTimeline(event, {{ loop.index }}, true)">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Conteúdo expandível (inicialmente oculto) -->
+                <div id="timeline-body-{{ loop.index }}" class="timeline-body" style="display: none;">
+                    <hr class="my-3">
+                    
+                    <div class="valores-grid">
+                        {% if TRUE or evento.valores.valorReconhecido and evento.valores.valorReconhecido > 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Reconhecido</small><br>
+                            <strong>R$ {{ "{:,.2f}".format(evento.valores.valorReconhecido).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        <!--if TRUE or evento.valores.valorReconhecidoComOH and evento.valores.valorReconhecidoComOH > 0 -->
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Rec. c/ Overhead</small><br>
+                            <strong class="{% if evento.valores.valorReconhecidoComOH >= 0 %}text-success{% else %}text-danger{% endif %}">R$ {{ "{:,.2f}".format(evento.valores.valorReconhecidoComOH).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        
+                        
+                        {% if evento.valores.overHeadTotal and evento.valores.overHeadTotal > 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Overhead Total</small><br>
+                            <strong>R$ {{ "{:,.2f}".format(evento.valores.overHeadTotal).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo in ["IPCA", "IGPM", "RECUPERACAO"] or evento.valores.diferencaValor and evento.valores.diferencaValor != 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Diferença</small><br>
+                            <strong class="{% if evento.valores.diferencaValor > 0 %}text-success{% else %}text-danger{% endif %}"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="Valor completo: {{ '{:.10f}'.format(evento.valores.diferencaValor).rstrip('0').rstrip('.') }}">
+                                R$ {{ "{:,.2f}".format(evento.valores.diferencaValor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            </strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo == 'RECUPERACAO' or evento.valores.valorRecuperado and evento.valores.valorRecuperado > 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Recuperado</small><br>
+                            <strong class="text-warning">R$ {{ "{:,.2f}".format(evento.valores.valorRecuperado).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo == 'RECUPERACAO' or evento.valores.valorRecuperadoTotal and evento.valores.valorRecuperadoTotal > 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Recuperado Total</small><br>
+                            <strong class="text-warning">R$ {{ "{:,.2f}".format(evento.valores.valorRecuperadoTotal).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo in ["IPCA", "IGPM"] or (evento.valores.taxaCorrecao and evento.valores.taxaCorrecao > 0) %}
+                        <div class="valor-item">
+                            <small class="text-muted">Taxa de Correção</small><br>
+                            <strong>{{ "{:.4f}".format(evento.valores.taxaCorrecao * 100) }}%</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo in ["IPCA", "IGPM"] or (evento.valores.igpmAcumuladoReais and evento.valores.igpmAcumuladoReais > 0) %}
+                        <div class="valor-item">
+                            <small class="text-muted">IGPM Acumulado (R$)</small><br>
+                            <strong>R$ {{ "{:,.2f}".format(evento.valores.igpmAcumuladoReais).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.valores.valorNaoReconhecido and evento.valores.valorNaoReconhecido > 0 %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Não Reconhecido</small><br>
+                            <strong class="text-danger">R$ {{ "{:,.2f}".format(evento.valores.valorNaoReconhecido).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+
+                        {% if evento.tipo == 'CRIACAO' or (evento.valores.valorReconhecidoExploracao and evento.valores.valorReconhecidoExploracao > 0) %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Rec. Exploração</small><br>
+                            <strong>R$ {{ "{:,.2f}".format(evento.valores.valorReconhecidoExploracao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        {% if evento.tipo == 'CRIACAO' or (evento.valores.valorReconhecidoProducao and evento.valores.valorReconhecidoProducao > 0) %}
+                        <div class="valor-item">
+                            <small class="text-muted">Valor Rec. Produção</small><br>
+                            <strong>R$ {{ "{:,.2f}".format(evento.valores.valorReconhecidoProducao).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <a href="javascript:void(0);" class="toggle-detalhes" onclick="toggleDetalhes(event, {{ loop.index }});">
+                        <i class="fas fa-chevron-down me-1"></i>Ver detalhes
+                    </a>
+
+                    <div id="detalhes-{{ loop.index }}" class="detalhes-extras">
+                        {% set labels_detalhes_timeline = {
+                            'dataLancamento': 'Data do Lançamento',
+                            'dataReconhecimento': 'Data do Reconhecimento',
+                            'contrato': 'Contrato',
+                            'contratoCpp': 'Contrato CPP',
+                            'campo': 'Campo',
+                            'remessa': 'Remessa',
+                            'remessaExposicao': 'Remessa de Exposição',
+                            'quantidadeLancamento': 'Quantidade de Lançamentos',
+                            'anoReconhecimento': 'Ano do Reconhecimento',
+                            'mesReconhecimento': 'Mês do Reconhecimento',
+                            'mesAnoReferencia': 'Mês/Ano de Referência',
+                            'faseRemessa': 'Fase da Remessa',
+                            'faseRespostaGestora': 'Fase Resposta Gestora',
+                            'periodo': 'Período',
+                            'version': 'Versão',
+                            'dataCriacaoCorrecao': 'Data de Criação da Correção',
+                            'dataCorrecao': 'Data da Correção',
+                            'dataCriacao': 'Data de Criação',
+                            'dataAtualizacao': 'Data de Atualização',
+                            'createdAt': 'Criado em',
+                            'updatedAt': 'Atualizado em',
+                            'ativo': 'Ativo',
+                            'transferencia': 'Transferência',
+                            'flgRecuperado': 'Status de Recuperação',
+                            'recuperado': 'Recuperado',
+                            'corrigido': 'Corrigido',
+                            'processado': 'Processado',
+                            'status': 'Status',
+                            'situacao': 'Situação',
+                            'tipo': 'Tipo',
+                            'subTipo': 'Subtipo',
+                            'origemDosGastos': 'Origem dos Gastos',
+                            'observacao': 'Observação',
+                            'valorReconhecido': 'Valor Reconhecido',
+                            'valorReconhecidoComOH': 'Valor Reconhecido com OH',
+                            'valorLancamentoTotal': 'Valor Lançamento Total',
+                            'valorReconhecivel': 'Valor Reconhecível',
+                            'valorNaoReconhecido': 'Valor Não Reconhecido',
+                            'valorNaoPassivelRecuperacao': 'Valor Não Passível de Recuperação',
+                            'overHeadTotal': 'Overhead Total',
+                            'overHeadExploracao': 'Overhead Exploração',
+                            'overHeadProducao': 'Overhead Produção',
+                            'valorReconhecidoExploracao': 'Valor Reconhecido Exploração',
+                            'valorReconhecidoProducao': 'Valor Reconhecido Produção',
+                            'valorRecuperado': 'Valor Recuperado',
+                            'valorRecuperadoTotal': 'Valor Recuperado Total',
+                            'taxaCorrecao': 'Taxa de Correção',
+                            'igpmAcumulado': 'IGPM Acumulado (%)',
+                            'igpmAcumuladoReais': 'IGPM Acumulado (R$)',
+                            'ipcaAcumulado': 'IPCA Acumulado (%)',
+                            'ipcaAcumuladoReais': 'IPCA Acumulado (R$)',
+                            'diferencaValor': 'Diferença de Valor'
+                        } %}
+                        {% for key, value in evento.detalhes.items() %}
+                        {% if value %}
+                        <div class="detalhe-item">
+                            <div class="detalhe-campo">
+                                {{ labels_detalhes_timeline.get(key, key) }}:
+                            </div>
+                            <div class="detalhe-valor">
+                                {% if key == 'ativo' %}
+                                    <span class="badge {% if value %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if value %}Ativo{% else %}Inativo{% endif %}
+                                    </span>
+                                {% elif key == 'transferencia' %}
+                                    <span class="badge {% if value %}bg-info{% else %}bg-secondary{% endif %}">
+                                        {% if value %}Sim{% else %}Não{% endif %}
+                                    </span>
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        
+                        {% if evento.dataCriacaoCorrecao %}
+                        <div class="detalhe-item">
+                            <div class="detalhe-campo">{{ labels_detalhes_timeline.get('dataCriacaoCorrecao', 'Data de Criação da Correção') }}:</div>
+                            <div class="detalhe-valor">{{ evento.dataCriacaoCorrecao }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="timeline-icon bg-{{ evento.cor }}">
+                <i class="{{ evento.icone }}"></i>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+window.API_PREFIX = "{{ request.script_root }}";
+
+function abrirModalSeguro(modalEl) {
+    if (!modalEl) {
+        return null;
+    }
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+        const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        instance.show();
+        return instance;
+    }
+
+    console.warn('[Timeline CCO] Bootstrap Modal não encontrado. Usando fallback manual para abrir modal.');
+    modalEl.classList.add('show', 'fallback-modal-show');
+    modalEl.removeAttribute('aria-hidden');
+    modalEl.setAttribute('aria-modal', 'true');
+    modalEl.setAttribute('role', 'dialog');
+    document.body.classList.add('fallback-modal-open');
+
+    const closeBtn = modalEl.querySelector('[data-bs-dismiss="modal"], .btn-close');
+    if (closeBtn) {
+        setTimeout(() => closeBtn.focus(), 50);
+    }
+
+    return {
+        show: function() {
+            modalEl.classList.add('show', 'fallback-modal-show');
+            document.body.classList.add('fallback-modal-open');
+        },
+        hide: function() {
+            fecharModalSeguro(modalEl);
+        }
+    };
+}
+
+function fecharModalSeguro(modalEl) {
+    if (!modalEl) {
+        return;
+    }
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+        const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        instance.hide();
+        return;
+    }
+
+    if (modalEl.contains(document.activeElement)) {
+        document.activeElement.blur();
+    }
+
+    modalEl.classList.remove('show', 'fallback-modal-show');
+    modalEl.setAttribute('aria-hidden', 'true');
+    modalEl.removeAttribute('aria-modal');
+    document.body.classList.remove('fallback-modal-open');
+}
+
+function configurarFechamentoModalFallback() {
+    document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const modalEl = btn.closest('.modal');
+
+            // Se Bootstrap estiver carregado, ele fará o fechamento.
+            // Aqui só removemos o foco antes do aria-hidden ser aplicado,
+            // evitando o warning "Blocked aria-hidden... descendant retained focus".
+            if (modalEl && modalEl.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+
+            if (!(window.bootstrap && window.bootstrap.Modal)) {
+                fecharModalSeguro(modalEl);
+            }
+        });
+    });
+
+    document.querySelectorAll('.modal').forEach(function(modalEl) {
+        // Bootstrap 5 dispara hide.bs.modal antes de esconder o modal.
+        // Se algum botão dentro do modal ainda estiver focado, removemos o foco.
+        modalEl.addEventListener('hide.bs.modal', function() {
+            if (modalEl.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        });
+
+        modalEl.addEventListener('click', function(event) {
+            if (event.target === modalEl && !(window.bootstrap && window.bootstrap.Modal)) {
+                fecharModalSeguro(modalEl);
+            }
+        });
+    });
+}
+
+
+function copiarTextoSeguro(texto, mensagemSucesso, mensagemErro, event) {
+    const textoNormalizado = String(texto ?? '');
+
+    if (!textoNormalizado) {
+        alert(mensagemErro || 'Não há conteúdo para copiar.');
+        return;
+    }
+
+    // Clipboard API moderna só funciona em contexto seguro:
+    // HTTPS, localhost ou alguns ambientes permitidos pelo navegador.
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext) {
+        navigator.clipboard.writeText(textoNormalizado)
+            .then(() => {
+                alert(mensagemSucesso);
+            })
+            .catch(() => {
+                copiarTextoFallback(textoNormalizado, mensagemSucesso, mensagemErro, event);
+            });
+        return;
+    }
+
+    // Em HTTP/IP local, cai aqui.
+    copiarTextoFallback(textoNormalizado, mensagemSucesso, mensagemErro, event);
+}
+
+function copiarTextoFallback(texto, mensagemSucesso, mensagemErro, event) {
+    const textoNormalizado = String(texto ?? '');
+
+    // Quando o botão está dentro de um modal Bootstrap, o foco fica preso dentro do modal.
+    // Então o textarea temporário precisa ser criado dentro do modal aberto,
+    // e não diretamente no body, senão o select/copy pode falhar mesmo retornando true.
+    const botaoOrigem = event ? event.currentTarget : null;
+    const modalAberto = botaoOrigem
+        ? botaoOrigem.closest('.modal')
+        : document.querySelector('.modal.show');
+
+    const container = modalAberto
+        ? (modalAberto.querySelector('.modal-body') || modalAberto)
+        : document.body;
+
+    const textarea = document.createElement('textarea');
+    textarea.value = textoNormalizado;
+    textarea.setAttribute('readonly', '');
+
+    // Não usar display:none, porque o navegador não copia texto de elemento invisível.
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.opacity = '0.01';
+    textarea.style.zIndex = '999999';
+
+    container.appendChild(textarea);
+
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    let copiado = false;
+
+    try {
+        copiado = document.execCommand('copy');
+    } catch (e) {
+        copiado = false;
+    }
+
+    textarea.remove();
+
+    if (botaoOrigem) {
+        setTimeout(() => botaoOrigem.focus(), 50);
+    }
+
+    if (copiado) {
+        alert(mensagemSucesso);
+        return;
+    }
+
+    // Último fallback: garante acesso ao conteúdo mesmo quando o navegador bloqueia cópia automática.
+    window.prompt('Não foi possível copiar automaticamente. Copie o conteúdo abaixo:', textoNormalizado);
+}
+
+function obterJsonOriginalFormatado() {
+    if (jsonOriginalTexto) {
+        return jsonOriginalTexto;
+    }
+
+    const jsonOriginal = {{ cco_json | tojson }};
+
+    try {
+        jsonOriginalTexto = JSON.stringify(JSON.parse(jsonOriginal), null, 2);
+    } catch (e) {
+        jsonOriginalTexto = jsonOriginal;
+    }
+
+    return jsonOriginalTexto;
+}
+
+function mostrarPreviewJsonOriginal(event) {
+    const button = event ? event.currentTarget : document.getElementById('btn-json-original');
+    const popover = document.getElementById('json-original-popover');
+    const content = document.getElementById('json-original-popover-content');
+
+    if (!button || !popover || !content) {
+        return;
+    }
+
+    let preview = button.getAttribute('data-json-preview') || obterJsonOriginalFormatado();
+
+    try {
+        preview = JSON.stringify(JSON.parse(preview), null, 2);
+    } catch (e) {
+        // mantém o texto original
+    }
+
+    if (preview.length > 2500) {
+        preview = preview.substring(0, 2500) + '\\n...';
+    }
+
+    content.textContent = preview;
+
+    const rect = button.getBoundingClientRect();
+    const margin = 10;
+
+    popover.style.display = 'block';
+
+    const popoverWidth = popover.offsetWidth || 620;
+    const popoverHeight = popover.offsetHeight || 360;
+
+    let left = rect.left;
+    let top = rect.bottom + margin;
+
+    if (left + popoverWidth > window.innerWidth - margin) {
+        left = window.innerWidth - popoverWidth - margin;
+    }
+
+    if (left < margin) {
+        left = margin;
+    }
+
+    if (top + popoverHeight > window.innerHeight - margin) {
+        top = rect.top - popoverHeight - margin;
+    }
+
+    if (top < margin) {
+        top = margin;
+    }
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+}
+
+function ocultarPreviewJsonOriginal() {
+    const popover = document.getElementById('json-original-popover');
+    if (popover) {
+        popover.style.display = 'none';
+    }
+}
+
+
+function exportarTimelineCco(ccoId) {
+    if (!ccoId) {
+        alert('ID da CCO não informado para exportação.');
+        return;
+    }
+
+    const url = `${window.API_PREFIX}/api/cco-timeline/${encodeURIComponent(ccoId)}/export?format=xlsx`;
+    window.open(url, '_blank');
+}
+
+function debugBootstrapCollapse() {
+    console.log('[Atributos CCO] Diagnóstico do accordion/collapse');
+    console.log('[Atributos CCO] window.bootstrap existe?', !!window.bootstrap);
+    console.log('[Atributos CCO] bootstrap.Collapse existe?', !!(window.bootstrap && window.bootstrap.Collapse));
+    console.log('[Atributos CCO] #atributos-avancados existe?', !!document.getElementById('atributos-avancados'));
+    console.log('[Atributos CCO] #accordion-atributos existe?', !!document.getElementById('accordion-atributos'));
+}
+
+function toggleAtributosAvancados(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const collapseEl = document.getElementById('atributos-avancados');
+    const button = document.getElementById('btn-toggle-atributos-avancados');
+
+    console.log('[Atributos CCO] Clique em Expandir/Recolher atributos');
+    console.log('[Atributos CCO] Elemento encontrado:', collapseEl);
+
+    if (!collapseEl) {
+        console.error('[Atributos CCO] Elemento #atributos-avancados não encontrado. Verifique o ID no HTML.');
+        return;
+    }
+
+    // Tenta usar Bootstrap 5 se estiver disponível.
+    if (window.bootstrap && window.bootstrap.Collapse) {
+        console.log('[Atributos CCO] Usando bootstrap.Collapse');
+        const instance = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+        instance.toggle();
+
+        setTimeout(() => {
+            const estaAberto = collapseEl.classList.contains('show');
+            if (button) {
+                button.setAttribute('aria-expanded', estaAberto ? 'true' : 'false');
+            }
+            console.log('[Atributos CCO] Estado após toggle Bootstrap:', estaAberto ? 'aberto' : 'fechado');
+        }, 350);
+        return;
+    }
+
+    // Fallback manual caso o Bootstrap JS não esteja carregado corretamente.
+    console.warn('[Atributos CCO] Bootstrap Collapse não encontrado. Usando fallback manual.');
+    const estaAberto = collapseEl.classList.contains('show');
+
+    if (estaAberto) {
+        collapseEl.classList.remove('show');
+        collapseEl.style.display = 'none';
+        if (button) {
+            button.setAttribute('aria-expanded', 'false');
+        }
+        console.log('[Atributos CCO] Fechado via fallback manual');
+    } else {
+        collapseEl.classList.add('show');
+        collapseEl.style.display = 'block';
+        if (button) {
+            button.setAttribute('aria-expanded', 'true');
+        }
+        console.log('[Atributos CCO] Aberto via fallback manual');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    configurarFechamentoModalFallback();
+    debugBootstrapCollapse();
+
+    // Inicializar tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+});
+
+
+document.addEventListener('click', function(event) {
+    const button = event.target.closest('#accordion-atributos .accordion-button');
+    if (!button) {
+        return;
+    }
+
+    const targetSelector = button.getAttribute('data-bs-target');
+    if (!targetSelector) {
+        return;
+    }
+
+    const target = document.querySelector(targetSelector);
+    if (!target) {
+        console.error('[Atributos CCO] Target do accordion não encontrado:', targetSelector);
+        return;
+    }
+
+    // Se Bootstrap estiver funcionando, deixa ele cuidar do comportamento.
+    if (window.bootstrap && window.bootstrap.Collapse) {
+        console.log('[Atributos CCO] Accordion interno usando Bootstrap:', targetSelector);
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    console.warn('[Atributos CCO] Bootstrap não encontrado para accordion interno. Usando fallback:', targetSelector);
+
+    const estaAberto = target.classList.contains('show');
+    if (estaAberto) {
+        target.classList.remove('show');
+        target.style.display = 'none';
+        button.classList.add('collapsed');
+        button.setAttribute('aria-expanded', 'false');
+    } else {
+        target.classList.add('show');
+        target.style.display = 'block';
+        button.classList.remove('collapsed');
+        button.setAttribute('aria-expanded', 'true');
+    }
+});
+
+
+let atributosSearchDebounceTimer = null;
+
+function filtrarAtributosDebounced(event) {
+    if (event && event.key === 'Escape') {
+        limparBuscaAtributos(event);
+        return;
+    }
+
+    clearTimeout(atributosSearchDebounceTimer);
+    atributosSearchDebounceTimer = setTimeout(filtrarAtributos, 300);
+}
+
+function abrirPainelAtributosSeNecessario() {
+    const collapseEl = document.getElementById('atributos-avancados');
+    const button = document.getElementById('btn-toggle-atributos-avancados');
+
+    if (!collapseEl) {
+        return;
+    }
+
+    if (window.bootstrap && window.bootstrap.Collapse) {
+        // O Bootstrap deve ser o único responsável pelo estado visual do collapse.
+        // Remove qualquer display inline para não conflitar com a classe .show.
+        collapseEl.style.removeProperty('display');
+
+        if (!collapseEl.classList.contains('show')) {
+            const instance = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+            instance.show();
+        }
+    } else if (!collapseEl.classList.contains('show')) {
+        // Fallback manual somente quando o Bootstrap não estiver disponível.
+        collapseEl.classList.add('show');
+        collapseEl.style.display = 'block';
+    }
+
+    if (button) {
+        button.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function atualizarEstadoCategoriaAtributos(categoria, deveMostrar, deveExpandir) {
+    categoria.style.display = deveMostrar ? '' : 'none';
+
+    const collapse = categoria.querySelector('.accordion-collapse');
+    const button = categoria.querySelector('.accordion-button');
+
+    if (!collapse || !button) {
+        return;
+    }
+
+    const bootstrapDisponivel = !!(window.bootstrap && window.bootstrap.Collapse);
+
+    // Quando o Bootstrap está disponível, não fixa display inline no collapse.
+    // O componente depende das classes .collapse/.show para abrir e fechar corretamente.
+    if (bootstrapDisponivel) {
+        collapse.style.removeProperty('display');
+    }
+
+    if (deveExpandir) {
+        collapse.classList.add('show');
+        if (!bootstrapDisponivel) {
+            collapse.style.display = 'block';
+        }
+        button.classList.remove('collapsed');
+        button.setAttribute('aria-expanded', 'true');
+    } else if (!deveMostrar) {
+        collapse.classList.remove('show');
+        if (!bootstrapDisponivel) {
+            collapse.style.display = 'none';
+        }
+        button.classList.add('collapsed');
+        button.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function filtrarAtributos() {
+    const input = document.getElementById('search-atributos');
+    const contador = document.getElementById('search-results-count');
+    const noResultsMsg = document.getElementById('no-results-msg');
+    const termoBusca = document.getElementById('termo-busca');
+    const btnLimpar = document.getElementById('btn-limpar-busca-atributos');
+
+    if (!input) {
+        console.warn('[Atributos CCO] Campo de busca #search-atributos não encontrado.');
+        return;
+    }
+
+    const termo = input.value.trim().toLowerCase();
+    const categorias = document.querySelectorAll('#accordion-atributos .accordion-item');
+
+    if (termoBusca) {
+        termoBusca.textContent = input.value.trim();
+    }
+
+    if (termo === '') {
+        categorias.forEach(function(categoria) {
+            categoria.style.display = '';
+            categoria.querySelectorAll('table tbody tr').forEach(function(linha) {
+                linha.style.display = '';
+                linha.classList.remove('highlight');
+            });
+        });
+
+        if (contador) {
+            contador.textContent = '';
+        }
+
+        if (noResultsMsg) {
+            noResultsMsg.style.display = 'none';
+        }
+
+        if (btnLimpar) {
+            btnLimpar.style.display = 'none';
+        }
+
+        return;
+    }
+
+    abrirPainelAtributosSeNecessario();
+
+    let totalEncontrados = 0;
+
+    categorias.forEach(function(categoria) {
+        let encontrouNaCategoria = false;
+
+        categoria.querySelectorAll('table tbody tr').forEach(function(linha) {
+            const nomeCampo = (linha.querySelector('code')?.textContent || '').toLowerCase();
+            const valorCampo = (linha.querySelector('td:nth-child(2)')?.textContent || '').toLowerCase();
+
+            if (nomeCampo.includes(termo) || valorCampo.includes(termo)) {
+                linha.style.display = '';
+                linha.classList.add('highlight');
+                encontrouNaCategoria = true;
+                totalEncontrados++;
+            } else {
+                linha.style.display = 'none';
+                linha.classList.remove('highlight');
+            }
+        });
+
+        atualizarEstadoCategoriaAtributos(categoria, encontrouNaCategoria, encontrouNaCategoria);
+    });
+
+    if (contador) {
+        contador.textContent = `${totalEncontrados} atributo(s) encontrado(s)`;
+    }
+
+    if (noResultsMsg) {
+        noResultsMsg.style.display = totalEncontrados === 0 ? 'block' : 'none';
+    }
+
+    if (btnLimpar) {
+        btnLimpar.style.display = 'inline-block';
+    }
+}
+
+function limparBuscaAtributos(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const input = document.getElementById('search-atributos');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+
+    clearTimeout(atributosSearchDebounceTimer);
+    filtrarAtributos();
+}
+
+function copiarAtributosJSON(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const jsonOriginal = {{ cco_json | tojson }};
+    let textoParaCopiar = jsonOriginal;
+
+    try {
+        textoParaCopiar = JSON.stringify(JSON.parse(jsonOriginal), null, 2);
+    } catch (e) {
+        textoParaCopiar = jsonOriginal;
+    }
+
+    copiarTextoSeguro(
+        textoParaCopiar,
+        'JSON copiado para área de transferência!',
+        'Não foi possível copiar o JSON.',
+        event
+    );
+}
+
+function toggleDetalhes(event, index) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const detalhes = document.getElementById(`detalhes-${index}`);
+    const toggle = event.target.closest('.toggle-detalhes');
+
+    if (!detalhes || !toggle) {
+        return;
+    }
+
+    if (detalhes.style.display === 'none' || !detalhes.style.display) {
+        detalhes.style.display = 'block';
+        toggle.innerHTML = '<i class="fas fa-chevron-up me-1"></i>Ocultar detalhes';
+    } else {
+        detalhes.style.display = 'none';
+        toggle.innerHTML = '<i class="fas fa-chevron-down me-1"></i>Ver detalhes';
+    }
+}
+
+let jsonOriginalTexto = null;
+
+function toggleValoresExtras() {
+    const section = document.getElementById('valoresExtrasSection');
+    const btnText = document.getElementById('btnToggleText');
+    
+    if (section.style.display === 'none' || !section.style.display) {
+        section.style.display = 'block';
+        btnText.textContent = 'Ocultar Valores Extras';
+    } else {
+        section.style.display = 'none';
+        btnText.textContent = 'Mostrar Valores Extras';
+    }
+}
+
+function mostrarJsonOriginal() {
+    const modalEl = document.getElementById('modalJsonOriginal');
+    const preview = document.getElementById('json-original-preview');
+
+    if (preview) {
+        preview.textContent = obterJsonOriginalFormatado();
+        preview.dataset.loaded = 'true';
+    }
+
+    abrirModalSeguro(modalEl);
+}
+
+function copiarJson(event) {
+    copiarAtributosJSON(event);
+}
+
+function toggleCardTimeline(event, index, forcarToggle = false) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const body = document.getElementById(`timeline-body-${index}`);
+    if (!body) {
+        return;
+    }
+
+    const card = body.closest('.timeline-card');
+    const icon = card.querySelector('.timeline-toggle-icon i');
+    const cardExpandido = !(body.style.display === 'none' || !body.style.display);
+    const clicouNoToggle = forcarToggle || (event && event.target.closest('.timeline-toggle-icon'));
+
+    // Regra de usabilidade:
+    // - Card fechado: permite abrir ao clicar no card.
+    // - Card aberto: não recolhe ao clicar nas informações internas.
+    // - Card aberto: só recolhe quando clicar no ícone de seta.
+    if (cardExpandido && !clicouNoToggle) {
+        return;
+    }
+
+    if (!cardExpandido) {
+        body.style.display = 'block';
+        card.classList.add('expanded');
+        icon.className = 'fas fa-chevron-up';
+    } else {
+        body.style.display = 'none';
+        card.classList.remove('expanded');
+        icon.className = 'fas fa-chevron-down';
+    }
+}
+
+function expandirTodosCards() {
+    const timelineBodies = document.querySelectorAll('[id^="timeline-body-"]');
+    const timelineCards = document.querySelectorAll('.timeline-card');
+    const timelineIcons = document.querySelectorAll('.timeline-toggle-icon i');
+    
+    timelineBodies.forEach(body => {
+        body.style.display = 'block';
+    });
+    
+    timelineCards.forEach(card => {
+        card.classList.add('expanded');
+    });
+    
+    timelineIcons.forEach(icon => {
+        icon.className = 'fas fa-chevron-up';
+    });
+}
+
+function contrairTodosCards() {
+    const timelineBodies = document.querySelectorAll('[id^="timeline-body-"]');
+    const timelineCards = document.querySelectorAll('.timeline-card');
+    const timelineIcons = document.querySelectorAll('.timeline-toggle-icon i');
+    
+    timelineBodies.forEach(body => {
+        body.style.display = 'none';
+    });
+    
+    timelineCards.forEach(card => {
+        card.classList.remove('expanded');
+    });
+    
+    timelineIcons.forEach(icon => {
+        icon.className = 'fas fa-chevron-down';
+    });
+}
+
+</script>
+{% endblock %}

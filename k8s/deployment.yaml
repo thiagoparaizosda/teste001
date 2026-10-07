@@ -1,0 +1,124 @@
+# =============================================================================
+# sgpp-cco-tools — Kubernetes Deployment (IBM Cloud - sgpp-cluster-dev)
+#
+# Pré-requisitos (executar uma única vez por ambiente):
+#
+#   1. Configurar o contexto kubectl para o cluster:
+#      ibmcloud ks cluster config --cluster sgpp-cluster-dev
+#
+#   2. Secret com variáveis de ambiente da aplicação:
+#      kubectl create secret generic sgpp-cco-tools-secrets \
+#        --from-literal=MONGO_URI_PRD="mongodb://user:pass@host1,host2,host3/?authSource=admin&replicaSet=replset&ssl=true&tlsCAFile=/app/certs/ca.pem" \
+#        --from-literal=MONGO_DATABASE="sgppServices" \
+#        --from-literal=SECRET_KEY="<chave-secreta>" \
+#        --from-literal=EUREKA_SERVER="http://<eureka-host>:8761/eureka/" \
+#        --from-literal=APP_NAME="sgpp-cco-tools" \
+#        --from-literal=URL_AUTH_GATEWAY="http://<gateway-host>/api/authenticate" \
+#        --from-literal=PESQUISA_AMBINTE_PRODUCAO="True" \
+#        --from-literal=CACHE_DIR_PATH="/tmp/flask_cache" \
+#        -n default
+#
+#   3. Secret com o certificado TLS do MongoDB:
+#      kubectl create secret generic sgpp-cco-tools-mongo-cert \
+#        --from-file=ca.pem=/caminho/local/ce7a62b2-457a-4740-8145-b897b98646bf.pem \
+#        -n default
+#
+#   4. Aplicar este manifest:
+#      kubectl apply -f k8s/deployment.yaml
+#
+#   5. Verificar os pods:
+#      kubectl get pods -n default -l app=sgpp-cco-tools
+#      kubectl logs -f deployment/sgpp-cco-tools -n default
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgpp-cco-tools
+  namespace: default
+  labels:
+    app: sgpp-cco-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sgpp-cco-tools
+  template:
+    metadata:
+      labels:
+        app: sgpp-cco-tools
+    spec:
+      # Secret para pull de us.icr.io — verificar nome com: kubectl get secrets -n default | grep icr
+      imagePullSecrets:
+        - name: all-icr-io
+      containers:
+        - name: sgpp-cco-tools-app
+          image: us.icr.io/sgpp/sgpp-cco-tools-dev:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5009
+
+          # Variáveis de ambiente vindas do Secret (ver pré-requisitos acima)
+          envFrom:
+            - secretRef:
+                name: sgpp-cco-tools-secrets
+          env:
+            # Caminho do cert TLS dentro do container (montado via volume abaixo)
+            - name: CA_CERTIFICATE_PATH_DEFAULT
+              value: /app/certs/ca.pem
+            - name: GUNICORN_BIND
+              value: "0.0.0.0:5009"
+
+          volumeMounts:
+            - name: mongo-cert
+              mountPath: /app/certs
+              readOnly: true
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+
+          livenessProbe:
+            httpGet:
+              path: /sgpp-cco-tools/
+              port: 5009
+            initialDelaySeconds: 40
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /sgpp-cco-tools/
+              port: 5009
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      volumes:
+        - name: mongo-cert
+          secret:
+            secretName: sgpp-cco-tools-mongo-cert
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgpp-cco-tools
+  namespace: default
+  labels:
+    app: sgpp-cco-tools
+spec:
+  selector:
+    app: sgpp-cco-tools
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5009
+      targetPort: 5009
+  type: ClusterIP

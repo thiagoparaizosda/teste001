@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sgpp-cco-tools-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: public-iks-k8s-nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/client-max-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  tls:
+    - hosts:
+        - sgpp-cluster-dev.sao01.containers.appdomain.cloud
+      secretName: sgpp-cluster-dev
+  rules:
+    - host: sgpp-cco-tools.sgpp-cluster-dev.sao01.containers.appdomain.cloud
+      http:
+        paths:
+          - path: /sgpp-cco-tools
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: sgpp-cco-tools
+                port:
+                  number: 5009
